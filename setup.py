@@ -6,5 +6,7 @@ setup(
     packages=find_packages(),
     install_requires=[
         # List your dependencies here
+        'f110-gym',
+        'zarr',
     ],
 )

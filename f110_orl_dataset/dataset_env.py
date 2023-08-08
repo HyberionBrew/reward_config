@@ -13,12 +13,14 @@ import pickle
 import tensorflow as tf
 import zarr
 from typing import Union, Tuple, Dict, Optional, List, Any
+from f110_gym.envs import F110Env
 
-class F1tenthDatasetEnv(gym.Env):
+
+class F1tenthDatasetEnv(F110Env):
     def __init__(
         self,
         name,
-        f110_gym_kwarg,
+        # f110_gym_kwarg,
         dataset_url=None,
         flatten_obs=True,
         flatten_acts=True,
@@ -29,7 +31,13 @@ class F1tenthDatasetEnv(gym.Env):
         padd_trajectories = True,
         trajectory_max_length = None,
         max_trajectories = None,
+        **kwargs
         ):
+        # Call the parent class's init
+        print(kwargs)
+        super(F1tenthDatasetEnv, self).__init__(**kwargs)
+
+
         if not(set_terminals):
             # not implemented yet
             raise NotImplementedError("TODO! Implement non-terminal trajectories")
@@ -39,7 +47,7 @@ class F1tenthDatasetEnv(gym.Env):
         self.max_trajectories = max_trajectories
         self.padd_trajectories = padd_trajectories
         self.trajectory_max_length = trajectory_max_length
-        self.sim_env = F110Env(**f110_gym_kwarg)
+        # self.sim_env = F110Env(**f110_gym_kwarg)
         self.flatten_obs = flatten_obs
         self.subsample_laser = subsample_laser
         self.laser_obs = laser_obs
@@ -248,8 +256,12 @@ class F1tenthDatasetEnv(gym.Env):
                         #print(traj_dict[key].shape)
                         #print(trajectory[key].shape)
                         traj_dict[key] = np.concatenate((traj_dict[key], trajectory[key]), axis=-1)
-            print(traj_dict.keys())
+            # print(traj_dict.keys())
             print(traj_dict['observations'].shape)
+            traj_dict['observations'] = traj_dict['observations'].T
+            traj_dict['actions'] = traj_dict['actions'].T
+            print(traj_dict['observations'].shape)
+            print("hi")
             trajectories = traj_dict
             print(trajectories.keys())
         return trajectories
