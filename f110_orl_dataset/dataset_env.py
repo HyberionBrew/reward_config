@@ -13,6 +13,26 @@ import zarr
 from typing import Union, Tuple, Dict, Optional, List, Any
 from f110_gym.envs import F110Env
 
+from config import *
+
+obs_dictionary_keys = [
+    "poses_x",
+    "poses_y",
+    "poses_theta",
+    "ang_vels_z",
+    "linear_vels_x",
+    "linear_vels_y",
+    "previous_action",
+    "progress"
+]
+def normalize(value, low, high):
+    """Normalize value between -1 and 1."""
+    return 2 * ((value - low) / (high - low)) - 1
+
+def clip(value, low, high):
+    """Clip a value between low and high."""
+    return np.clip(value, low, high)
+
 class F1tenthDatasetEnv(F110Env):
     def __init__(
         self,
@@ -52,14 +72,14 @@ class F1tenthDatasetEnv(F110Env):
         super(F1tenthDatasetEnv, self).__init__(**kwargs)
 
         # now we define our action and observation spaces
-        action_space_low = np.array([-1.0,-1])
-        action_space_high = np.array([1.0, 1.0])
-        self.action_space = gym.spaces.Box(action_space_low, action_space_high)
-        
+        #action_space_low = np.array([-1.0,-1])
+        #action_space_high = np.array([1.0, 1.0])
+        #self.action_space = gym.spaces.Box(action_space_low, action_space_high)
+        print(self.action_space)
         # observation space is a dict with keys:
         # the first one is the scan
         # the second one is the odometry
-        rays = int(1080/subsample_laser)
+        rays = int(1080/SUBSAMPLE)
         # laser_scan_space = gym.spaces.Box(low=np.array([0]*rays), high=np.array([30]*rays))
         # Dict('ang_vels_z': Box(-20.0, 20.0, (1,), float32), 
         # 'linear_vels_x': Box(-20.0, 20.0, (1,), float32), 
@@ -71,21 +91,25 @@ class F1tenthDatasetEnv(F110Env):
         # 'lidar_occupancy': Box(0, 255, (1, 80, 80), uint8), 
         # 'previous_action': Box(-1.0, 1.0, (1, 2), float32))
         #state_space = gym.spaces.Box(low=np.array([-100, -100, 0,-10.0, -10.0, -10.0]), high=np.array([100, 100,2*np.pi, 10,10,10]))
-        state_space = gym.spaces.Dict({'ang_vels_z': Box(-1.0, 1.0, (1,), np.float32),
-        'linear_vels_x': Box(-1.0, 1.0, (1,), np.float32),
-        'linear_vels_y': Box(-1.0, 1.0, (1,), np.float32),
-        'poses_theta': Box(-10, 10, (1,), np.float32), #TODO!
-        'poses_x': Box(-1.0, 1.0, (1,), np.float32),
-        'poses_y': Box(-1.0, 1.0, (1,), np.float32),
+        state_space = gym.spaces.Dict({
+        'poses_x': Box(POSE_LOW, POSE_HIGH, (1,), np.float32),
+        'poses_y': Box(POSE_LOW, POSE_HIGH, (1,), np.float32),
+        'poses_theta': Box(POSE_THETA_LOW, POSE_THETA_HIGH, (1,), np.float32), #TODO!
+        'ang_vels_z': Box(VEL_LOW, VEL_HIGH, (1,), np.float32),
+        'linear_vels_x': Box(VEL_LOW, POSE_THETA_LOW, (1,), np.float32),
+        'linear_vels_y': Box(VEL_LOW, POSE_THETA_LOW, (1,), np.float32),
         'progress': Box(0.0, 1.0, (1,), np.float32),
         # 'lidar_occupancy': ,
-        'previous_action': Box(-1.0, 1.0, (1, 2), np.float32)})
+        'previous_action': Box(low = [[self.action_space.low[0][0], MIN_VEL]], 
+                               high=[[self.action_space.high[0][0], MAX_VEL]], 
+                               shape=(1, 2), dtype=np.float32)
+        })
         # print(state_space)
         self.observation_space = gym.spaces.Dict({
             # 'laser_scan': Box(0, 255, (1, 80, 80), np.uint8),
             'state': state_space
         })
-        self.laser_obs_space = gym.spaces.Box(0, 255, (1, 80, 80), np.uint8)
+        self.laser_obs_space = gym.spaces.Box(0, 1, (rays,), np.float32)
         # print(self.observation_space)
         self._orig_flat_obs_space = gym.spaces.flatten_space(self.observation_space)
         
@@ -97,13 +121,28 @@ class F1tenthDatasetEnv(F110Env):
             rewards=[],
             terminals=[],
             infos=[],)
-
+        
     def shorten_trajectories(self, dataset):
-        print("Hi")
         # where are the terminals
         terminals = np.where(dataset['terminals'])[0]
         print(terminals)
+    def normalize_actions(self, actions):
+        if self.flatten_obs:
+            actions = clip(actions, self.action_space.low, self.action_space.high)
+            actions = normalize(actions, self.action_space.low, self.action_space.high)
+        else:
+            raise NotImplementedError("TODO! Implement normalize_actions")
         
+    def normalize_obs_batch(self, batch_obs):
+        if self.flatten_obs:
+            for i, key in enumerate(obs_dictionary_keys):
+                batch_obs[i] = clip(batch_obs[i], self.observation_space[key].low, self.observation_space[key].high)
+                batch_obs[i] = normalize(batch_obs[i], self.observation_space[key].low, self.observation_space[key].high)
+        else:
+            raise NotImplementedError("TODO! Implement normalize_obs_batch")
+        return batch_obs
+    
+    # def normalize_act_batch(self, batch_act):
     def pad_trajectories(self, dataset, trajectory_max_length):
         # split dataset into trajectories at done signal = 1
         trajectories = np.split(dataset['actions'], np.where(dataset['terminals'])[0]+1)[0:-1]
@@ -124,11 +163,11 @@ class F1tenthDatasetEnv(F110Env):
 
     def get_model_names(self, dataset):
         pass
-    def get_scan(self, timesteps):
-        indices = timesteps - 1
-        root = zarr.open(self.zarr_path, mode='r')
-        scan = root['observations']['lidar_occupancy'][indices]
-        return scan
+    
+    #def get_scan(self, indices):
+    #    root = zarr.open(self.zarr_path, mode='r')
+    #    scan = root['observations']['lidar_occupancy'][indices]
+    #    return scan
 
     def get_dataset(
         self,
@@ -196,18 +235,22 @@ class F1tenthDatasetEnv(F110Env):
         # print("Indices:", indices)
         data_dict['rewards'] = root['rewards'][indices]
         # print("hi")
-        data_dict['terminals'] = np.logical_or(root['done'][indices],root['truncated'][indices])
+        data_dict['terminals'] = root['done'][indices]
+        data_dict['timeouts'] = root['truncated'][indices]
         # print("hi")
         data_dict['actions'] = root['actions'][indices]
+       
         # print("hi")
-        data_dict['timestep'] = root['timestep'][indices]
+        data_dict['index'] = indices #root['timestep'][indices]
         # loop over observation keys
         data_dict['observations'] = dict()
         for key in root['observations'].array_keys():
-            # print(key)
+            print(key)
             if key != 'lidar_occupancy':
                 data_dict['observations'][key] = root['observations'][key][indices]
             else:
+                data_dict['scans'] = root['observations']['lidar_occupancy'][indices]
+                # print(root['observations']['lidar_occupancy'].shape)
                 continue
                 # data_dict['scan'] = root['observations'][key][indices]
         # data_dict = root['observations'][indices]
@@ -216,7 +259,7 @@ class F1tenthDatasetEnv(F110Env):
             # Extract all the filtered arrays and flatten them
             # Expand dimensions and prepare arrays for concatenation
             # print([arr.shape for arr in data_dict['observations'][key]])
-            arrays_to_concat = [data_dict['observations'][key].reshape([data_dict['observations'][key].shape[0], -1]) for key in data_dict['observations']]
+            arrays_to_concat = [data_dict['observations'][key].reshape([data_dict['observations'][key].shape[0], -1]) for key in obs_dictionary_keys]
     
             # print the shapes of all arrays to concatenate
             # print([arr.shape for arr in arrays_to_concat])
