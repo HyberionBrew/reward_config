@@ -1,5 +1,5 @@
 import numpy as np
-from config import *
+from .config import *
 from gymnasium.spaces import Box
 
 from collections import OrderedDict

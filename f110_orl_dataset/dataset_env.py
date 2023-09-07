@@ -13,7 +13,7 @@ import zarr
 from typing import Union, Tuple, Dict, Optional, List, Any
 from f110_gym.envs import F110Env
 
-from config import *
+from .config import *
 
 obs_dictionary_keys = [
     "poses_x",
@@ -91,6 +91,7 @@ class F1tenthDatasetEnv(F110Env):
         # 'lidar_occupancy': Box(0, 255, (1, 80, 80), uint8), 
         # 'previous_action': Box(-1.0, 1.0, (1, 2), float32))
         #state_space = gym.spaces.Box(low=np.array([-100, -100, 0,-10.0, -10.0, -10.0]), high=np.array([100, 100,2*np.pi, 10,10,10]))
+        print(self.action_space.low)
         state_space = gym.spaces.Dict({
         'poses_x': Box(POSE_LOW, POSE_HIGH, (1,), np.float32),
         'poses_y': Box(POSE_LOW, POSE_HIGH, (1,), np.float32),
@@ -100,8 +101,9 @@ class F1tenthDatasetEnv(F110Env):
         'linear_vels_y': Box(VEL_LOW, POSE_THETA_LOW, (1,), np.float32),
         'progress': Box(0.0, 1.0, (1,), np.float32),
         # 'lidar_occupancy': ,
-        'previous_action': Box(low = [[self.action_space.low[0][0], MIN_VEL]], 
-                               high=[[self.action_space.high[0][0], MAX_VEL]], 
+
+        'previous_action': Box(low = np.asarray([[self.action_space.low[0][0], MIN_VEL]]), 
+                               high=np.asarray([[self.action_space.high[0][0], MAX_VEL]]), 
                                shape=(1, 2), dtype=np.float32)
         })
         # print(state_space)
@@ -134,6 +136,8 @@ class F1tenthDatasetEnv(F110Env):
             raise NotImplementedError("TODO! Implement normalize_actions")
         
     def normalize_obs_batch(self, batch_obs):
+        # deprecated raise error
+        assert(False)
         if self.flatten_obs:
             for i, key in enumerate(obs_dictionary_keys):
                 batch_obs[i] = clip(batch_obs[i], self.observation_space[key].low, self.observation_space[key].high)
