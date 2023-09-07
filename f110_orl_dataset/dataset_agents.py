@@ -4,7 +4,7 @@ import inspect
 import torch
 
 class F110Actor(object):
-    def __init__(self, name="td_progress", deterministic=True):
+    def __init__(self, name="td_progress", deterministic=False):
         self.name = name
         current_file_path = os.path.dirname(os.path.abspath(inspect.getfile(inspect.currentframe())))
         model_path = os.path.join(current_file_path, f"data/{name}")

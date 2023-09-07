@@ -15,6 +15,8 @@ from f110_gym.envs import F110Env
 
 from config import *
 
+# import ordered dict
+from collections import OrderedDict
 obs_dictionary_keys = [
     "poses_x",
     "poses_y",
@@ -52,7 +54,7 @@ class F1tenthDatasetEnv(F110Env):
         print(kwargs)
         super(F1tenthDatasetEnv, self).__init__(**kwargs)
 
-
+        print("hi")
         if flatten_trajectories:
             raise NotImplementedError("TODO! Implement flatten_trajectories")
         self.name = name
@@ -75,10 +77,13 @@ class F1tenthDatasetEnv(F110Env):
         #action_space_low = np.array([-1.0,-1])
         #action_space_high = np.array([1.0, 1.0])
         #self.action_space = gym.spaces.Box(action_space_low, action_space_high)
+        print("===")
         print(self.action_space)
         # observation space is a dict with keys:
         # the first one is the scan
         # the second one is the odometry
+        print("low")
+        print(SUBSAMPLE)
         rays = int(1080/SUBSAMPLE)
         # laser_scan_space = gym.spaces.Box(low=np.array([0]*rays), high=np.array([30]*rays))
         # Dict('ang_vels_z': Box(-20.0, 20.0, (1,), float32), 
@@ -91,30 +96,39 @@ class F1tenthDatasetEnv(F110Env):
         # 'lidar_occupancy': Box(0, 255, (1, 80, 80), uint8), 
         # 'previous_action': Box(-1.0, 1.0, (1, 2), float32))
         #state_space = gym.spaces.Box(low=np.array([-100, -100, 0,-10.0, -10.0, -10.0]), high=np.array([100, 100,2*np.pi, 10,10,10]))
-        state_space = gym.spaces.Dict({
-        'poses_x': Box(POSE_LOW, POSE_HIGH, (1,), np.float32),
-        'poses_y': Box(POSE_LOW, POSE_HIGH, (1,), np.float32),
-        'poses_theta': Box(POSE_THETA_LOW, POSE_THETA_HIGH, (1,), np.float32), #TODO!
-        'ang_vels_z': Box(VEL_LOW, VEL_HIGH, (1,), np.float32),
-        'linear_vels_x': Box(VEL_LOW, POSE_THETA_LOW, (1,), np.float32),
-        'linear_vels_y': Box(VEL_LOW, POSE_THETA_LOW, (1,), np.float32),
-        'progress': Box(0.0, 1.0, (1,), np.float32),
-        # 'lidar_occupancy': ,
-        'previous_action': Box(low = [[self.action_space.low[0][0], MIN_VEL]], 
-                               high=[[self.action_space.high[0][0], MAX_VEL]], 
-                               shape=(1, 2), dtype=np.float32)
-        })
-        # print(state_space)
-        self.observation_space = gym.spaces.Dict({
+        # Initialize an empty dictionary
+        state_dict = OrderedDict()
+
+        # Append each box in desired order
+        state_dict['poses_x'] = Box(POSE_LOW, POSE_HIGH, (1,), np.float32)
+        state_dict['poses_y'] = Box(POSE_LOW, POSE_HIGH, (1,), np.float32)
+        state_dict['poses_theta'] = Box(POSE_THETA_LOW, POSE_THETA_HIGH, (1,), np.float32)
+        state_dict['ang_vels_z'] = Box(VEL_LOW, VEL_HIGH, (1,), np.float32)
+        state_dict['linear_vels_x'] = Box(VEL_LOW, VEL_HIGH, (1,), np.float32)
+        state_dict['linear_vels_y'] = Box(VEL_LOW, VEL_HIGH, (1,), np.float32)
+        state_dict['previous_action'] = Box(low=np.asarray([[self.action_space.low[0][0], MIN_VEL]]), 
+                                        high=np.asarray([[self.action_space.high[0][0], MAX_VEL]]), 
+                                        shape=(1, 2), dtype=np.float32)
+        state_dict['progress'] = Box(0.0, 1.0, (1,), np.float32)
+        # Convert the ordered dictionary to a gym space dict
+        state_space = gym.spaces.Dict(state_dict)
+
+        print(state_space)
+        
+        self.observation_space = state_space #gym.spaces.Dict({
             # 'laser_scan': Box(0, 255, (1, 80, 80), np.uint8),
-            'state': state_space
-        })
+            #'state': state_space
+        #})
+        self.observation_space_orig = self.observation_space
         self.laser_obs_space = gym.spaces.Box(0, 1, (rays,), np.float32)
         # print(self.observation_space)
         self._orig_flat_obs_space = gym.spaces.flatten_space(self.observation_space)
         
         if self.flatten_obs:
             self.observation_space = self._orig_flat_obs_space
+           
+            print(self.observation_space)
+            print("***********")
         self.dataset = dict(
             actions=[],
             observations=[],
@@ -133,15 +147,84 @@ class F1tenthDatasetEnv(F110Env):
         else:
             raise NotImplementedError("TODO! Implement normalize_actions")
         
+    
+    
+    
+    
+    """
+    def unflatten_batch(self, batch):
+        batch = np.asarray(batch)
+        if self.flatten_obs:
+            print("........")
+            assert(len(batch.shape) <= 2)
+            if (len(batch.shape)==1):
+                return gym.spaces.unflatten(self.observation_space_orig, batch)
+            else:
+                print(self.observation_space_orig.spaces.keys())
+                batch_dict = {f"{key}" : [] for key in self.observation_space_orig.spaces.keys()}
+                print(batch.shape[1])
+                print(batch)
+                print(len(obs_dictionary_keys))
+                assert(batch.shape[1]==len(obs_dictionary_keys))
+                for i, key in enumerate(self.observation_space_orig.spaces.keys()):
+                    for 
+                    batch_dict[key] = batch[:,i]
+                return batch
+        else:
+            return batch
+    """
+    """
     def normalize_obs_batch(self, batch_obs):
         if self.flatten_obs:
-            for i, key in enumerate(obs_dictionary_keys):
-                batch_obs[i] = clip(batch_obs[i], self.observation_space[key].low, self.observation_space[key].high)
-                batch_obs[i] = normalize(batch_obs[i], self.observation_space[key].low, self.observation_space[key].high)
+            print(batch_obs)
+            print(self.observation_space)
+            print(batch_obs.shape)
+            print(self.observation_space.shape[0])
+            for i in range(self.observation_space.shape[0]):
+                # if key != 'lidar_occupancy' and key != 'progress':
+                low = self.observation_space.low[i]
+                high = self.observation_space.high[i]
+                if np.isclose(low,0) and np.isclose(high,1):
+                    #print("called")
+                    #print(batch_obs[:,i])
+                    continue
+                batch_obs[:,i] = clip(batch_obs[:,i], low, high)
+                batch_obs[:,i] = normalize(batch_obs[:,i], low, high)
         else:
             raise NotImplementedError("TODO! Implement normalize_obs_batch")
         return batch_obs
-    
+    """
+    def normalize_obs_batch(self, batch_dict):
+        if self.flatten_obs:
+            # Unflatten the batch observations
+            for key, obs in batch_dict.items():
+                # Skip specific keys that you don't want to normalize
+                if key not in ['lidar_occupancy', 'progress']:
+                    low = self.observation_space_orig.spaces[key].low
+                    high = self.observation_space_orig.spaces[key].high
+                    
+                    # If the range is [0, 1], then skip normalization
+                    print(low)
+                    if np.isclose(low, 0) and np.isclose(high, 1):
+                        continue
+
+                    # If the observation space is multi-dimensional, reshape to 2D for vectorized operations
+                    original_shape = obs.shape
+                    if len(original_shape) > 2:
+                        obs = obs.reshape(original_shape[0], -1)
+
+                    obs = clip(obs, low, high)
+                    obs = normalize(obs, low, high)
+
+                    # If the observation space is multi-dimensional, reshape back to original shape
+                    if len(original_shape) > 2:
+                        obs = obs.reshape(original_shape)
+
+                    batch_dict[key] = obs
+
+            return batch_dict
+        else:
+            raise NotImplementedError("TODO! Implement normalize_obs_batch for non-flattened observations")
     # def normalize_act_batch(self, batch_act):
     def pad_trajectories(self, dataset, trajectory_max_length):
         # split dataset into trajectories at done signal = 1
@@ -161,6 +244,12 @@ class F1tenthDatasetEnv(F110Env):
                 current_name = name
         return change_indices + [len(model_names)]
 
+    def to_dict(self, batch):
+        if self.flatten_obs:
+            return gym.spaces.unflatten(self._orig_flat_obs_space, batch)
+        else:
+            return batch
+    
     def get_model_names(self, dataset):
         pass
     
@@ -279,3 +368,22 @@ class F1tenthDatasetEnv(F110Env):
     
     def action_spec(self):
         return self.action_space
+    
+
+    def get_laser_scan(self, states, subsample_laser):
+        xy = states[:, :2]
+        theta = states[:, 2]
+        # Expand the dimensions of theta
+        theta = np.expand_dims(theta, axis=-1)
+        joined = np.concatenate([xy, theta], axis=-1)
+        
+        all_scans = []
+        for pose in joined:
+            print("sampling at pose:", pose)
+            # Assuming F110Env.sim.agents[0].scan_simulator.scan(pose, None) returns numpy array
+            scan = self.sim.agents[0].scan_simulator.scan(pose, None)[::subsample_laser]
+            scan = scan.astype(np.float32)
+            all_scans.append(scan)
+        # normalize the laser scan
+        all_scans = np.array(all_scans)
+        return all_scans
