@@ -13,7 +13,7 @@ import zarr
 from typing import Union, Tuple, Dict, Optional, List, Any
 from f110_gym.envs import F110Env
 
-from config import *
+from .config import *
 
 # import ordered dict
 from collections import OrderedDict
@@ -175,6 +175,8 @@ class F1tenthDatasetEnv(F110Env):
     """
     """
     def normalize_obs_batch(self, batch_obs):
+        # deprecated raise error
+        assert(False)
         if self.flatten_obs:
             print(batch_obs)
             print(self.observation_space)

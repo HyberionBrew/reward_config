@@ -23,8 +23,11 @@ class F110Actor(object):
                 "lidar_occupancy"
             ]
 
-    def __call__(self, obs, actions=None):
+    def __call__(self, obs, std=0.0, actions=None):
         # make sure obs is a dict and contains all the keys
+        if std!=0.0:
+            # not implemented error
+            raise NotImplementedError
         assert isinstance(obs, dict)
         assert all([key in obs for key in self.obs_keys])
         log_prob = None
