@@ -330,7 +330,7 @@ class F1tenthDatasetEnv(F110Env):
         data_dict['timeouts'] = root['truncated'][indices]
         # print("hi")
         data_dict['actions'] = root['actions'][indices]
-       
+        data_dict['log_probs'] = root['log_prob'][indices]
         # print("hi")
         data_dict['index'] = indices #root['timestep'][indices]
         # loop over observation keys
