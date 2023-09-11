@@ -322,8 +322,9 @@ class F1tenthDatasetEnv(F110Env):
         # print all unique model names
         print(np.unique(model_names))
         data_dict = {}
+        print("len(model_names)", len(model_names))
         indices = np.where(~np.isin(model_names, without_agents))[0]
-        # print("Indices:", indices)
+        print("Indices:", len(indices))
         data_dict['rewards'] = root['rewards'][indices]
         # print("hi")
         data_dict['terminals'] = root['done'][indices]
@@ -381,7 +382,7 @@ class F1tenthDatasetEnv(F110Env):
         
         all_scans = []
         for pose in joined:
-            print("sampling at pose:", pose)
+            # print("sampling at pose:", pose)
             # Assuming F110Env.sim.agents[0].scan_simulator.scan(pose, None) returns numpy array
             scan = self.sim.agents[0].scan_simulator.scan(pose, None)[::subsample_laser]
             scan = scan.astype(np.float32)

@@ -34,7 +34,11 @@ class F110Actor(object):
         if actions is None:
             #print("hi")
             with torch.no_grad():
-                actions = self.model.predict(obs, deterministic=self.deterministic)[0].squeeze(1)
+                tensor_obs = self.model.policy.obs_to_tensor(obs)[0]
+
+                actions, _, log_prob = self.model.policy.forward(tensor_obs, deterministic=False)# [0]
+                actions = actions.squeeze(1).cpu().numpy()
+                # print("wwwwww")
             #    print("actions", actions)
         else:
             # assert()
@@ -42,18 +46,22 @@ class F110Actor(object):
                 # actions to tensor
                 # check if it is a torch tensor already
                 if not isinstance(actions, torch.Tensor):
-                    actions = torch.tensor(actions) #.unsqueeze(0)
+                    # print("crash here", actions)
+                    # tf tensor to numpy
+                    actions = actions.numpy()
+                    # numpy to torch tensor
+                    print(self.model.policy.device)
+                    actions = torch.tensor(actions, device=self.model.policy.device) #.unsqueeze(0)
                 # TODO! check what the actions shape is and should be
-                #print(actions.shape)
+                # print(actions.shape)
                 
                 obs_tensor, _ = self.model.policy.obs_to_tensor(obs)
-                print("pns")
-                print(obs_tensor)
-                # assert(False)
+                # print(obs_tensor)
                 _, log_prob, _ = self.model.policy.evaluate_actions(obs_tensor, actions)
                 # flatten log_prob
                 log_prob = log_prob.flatten()
-                print(log_prob)
+                # print(log_prob)
+                log_prob = log_prob.cpu().numpy()
                 assert(log_prob.shape[0] == actions.shape[0])
                 assert(log_prob.shape[0] == obs_tensor["poses_x"].shape[0])
             # return log_prob
