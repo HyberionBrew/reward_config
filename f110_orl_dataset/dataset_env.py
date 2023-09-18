@@ -266,6 +266,7 @@ class F1tenthDatasetEnv(F110Env):
         clip: bool = True,
         # rng: Optional[Tuple[int, int]] = None,
         without_agents: Optional[np.ndarray] = [],
+        alternate_reward: bool = False,
     ) -> Dict[str, Any]:
         """ 
         TODO! this is copied from https://github.com/rr-learning/trifinger_rl_datasets/blob/master/trifinger_rl_datasets/dataset_env.py
@@ -325,7 +326,11 @@ class F1tenthDatasetEnv(F110Env):
         print("len(model_names)", len(model_names))
         indices = np.where(~np.isin(model_names, without_agents))[0]
         print("Indices:", len(indices))
-        data_dict['rewards'] = root['rewards'][indices]
+        if alternate_reward:
+            print("Using alternate reward")
+            data_dict['rewards'] = root['new_rewards'][indices]
+        else:
+            data_dict['rewards'] = root['rewards'][indices]
         # print("hi")
         data_dict['terminals'] = root['done'][indices]
         data_dict['timeouts'] = root['truncated'][indices]

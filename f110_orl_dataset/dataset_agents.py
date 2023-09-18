@@ -2,6 +2,7 @@ from stable_baselines3 import PPO
 import os
 import inspect
 import torch
+import numpy as np
 
 class F110Actor(object):
     def __init__(self, name="td_progress", deterministic=False):
@@ -36,7 +37,7 @@ class F110Actor(object):
             with torch.no_grad():
                 tensor_obs = self.model.policy.obs_to_tensor(obs)[0]
 
-                actions, _, log_prob = self.model.policy.forward(tensor_obs, deterministic=False)# [0]
+                actions, _, log_prob = self.model.policy.forward(tensor_obs, deterministic=self.deterministic)# [0]
                 actions = actions.squeeze(1).cpu().numpy()
                 # print("wwwwww")
             #    print("actions", actions)
@@ -50,7 +51,7 @@ class F110Actor(object):
                     # tf tensor to numpy
                     actions = actions.numpy()
                     # numpy to torch tensor
-                    print(self.model.policy.device)
+                    # print(self.model.policy.device)
                     actions = torch.tensor(actions, device=self.model.policy.device) #.unsqueeze(0)
                 # TODO! check what the actions shape is and should be
                 # print(actions.shape)
@@ -67,3 +68,17 @@ class F110Actor(object):
             # return log_prob
             # keep same actions
         return None, actions, log_prob
+    
+class F110Stupid(object):
+    def __init__(self):
+        pass
+    def __call__(self, obs, std=0.0, actions=None):
+        # return action [0.0, 1.0] in batch shape of obs
+        # print(obs["previous_action"].shape)
+        actions = np.zeros_like(obs["previous_action"])
+        actions = actions.squeeze(1)
+        actions[:, 1] = 1.0
+        log_prob = - np.ones((actions.shape[0], 1), dtype=np.float32)
+        # print(actions.shape)
+        return None, actions, log_prob
+    
