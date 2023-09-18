@@ -2,6 +2,7 @@ from stable_baselines3 import PPO
 import os
 import inspect
 import torch
+import numpy as np
 
 class F110Actor(object):
     def __init__(self, name="td_progress", deterministic=False):
@@ -34,7 +35,11 @@ class F110Actor(object):
         if actions is None:
             #print("hi")
             with torch.no_grad():
-                actions = self.model.predict(obs, deterministic=self.deterministic)[0].squeeze(1)
+                tensor_obs = self.model.policy.obs_to_tensor(obs)[0]
+
+                actions, _, log_prob = self.model.policy.forward(tensor_obs, deterministic=self.deterministic)# [0]
+                actions = actions.squeeze(1).cpu().numpy()
+                # print("wwwwww")
             #    print("actions", actions)
         else:
             # assert()
@@ -42,20 +47,38 @@ class F110Actor(object):
                 # actions to tensor
                 # check if it is a torch tensor already
                 if not isinstance(actions, torch.Tensor):
-                    actions = torch.tensor(actions) #.unsqueeze(0)
+                    # print("crash here", actions)
+                    # tf tensor to numpy
+                    if not isinstance(actions, np.ndarray):
+                        actions = actions.numpy()
+                    # numpy to torch tensor
+                    print(self.model.policy.device)
+                    actions = torch.tensor(actions, device=self.model.policy.device) #.unsqueeze(0)
                 # TODO! check what the actions shape is and should be
-                #print(actions.shape)
+                # print(actions.shape)
                 
                 obs_tensor, _ = self.model.policy.obs_to_tensor(obs)
-                print("pns")
-                print(obs_tensor)
-                # assert(False)
+                # print(obs_tensor)
                 _, log_prob, _ = self.model.policy.evaluate_actions(obs_tensor, actions)
                 # flatten log_prob
                 log_prob = log_prob.flatten()
-                print(log_prob)
+                # print(log_prob)
+                log_prob = log_prob.cpu().numpy()
                 assert(log_prob.shape[0] == actions.shape[0])
                 assert(log_prob.shape[0] == obs_tensor["poses_x"].shape[0])
             # return log_prob
             # keep same actions
+        return None, actions, log_prob
+    
+class F110Stupid(object):
+    def __init__(self):
+        pass
+    def __call__(self, obs, std=0.0, actions=None):
+        # return action [0.0, 1.0] in batch shape of obs
+        # print(obs["previous_action"].shape)
+        actions = np.zeros_like(obs["previous_action"])
+        actions = actions.squeeze(1)
+        actions[:, 1] = 1.0
+        log_prob = - np.ones((actions.shape[0], 1), dtype=np.float32)
+        # print(actions.shape)
         return None, actions, log_prob

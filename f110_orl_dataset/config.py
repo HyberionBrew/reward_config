@@ -1,0 +1,11 @@
+import numpy as np
+
+POSE_LOW = -30
+POSE_HIGH = 30
+VEL_LOW = -20
+VEL_HIGH = 20
+SUBSAMPLE = 20
+POSE_THETA_LOW = -np.pi*2
+POSE_THETA_HIGH =  np.pi*2
+MIN_VEL = 0.7
+MAX_VEL = 2.0

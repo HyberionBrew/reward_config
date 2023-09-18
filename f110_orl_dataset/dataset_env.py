@@ -98,7 +98,9 @@ class F1tenthDatasetEnv(F110Env):
         #state_space = gym.spaces.Box(low=np.array([-100, -100, 0,-10.0, -10.0, -10.0]), high=np.array([100, 100,2*np.pi, 10,10,10]))
         # Initialize an empty dictionary
         state_dict = OrderedDict()
-
+        # TODO more elegant below
+        s_min = -0.4189
+        s_max = 0.4189
         # Append each box in desired order
         state_dict['poses_x'] = Box(POSE_LOW, POSE_HIGH, (1,), np.float32)
         state_dict['poses_y'] = Box(POSE_LOW, POSE_HIGH, (1,), np.float32)
@@ -106,16 +108,17 @@ class F1tenthDatasetEnv(F110Env):
         state_dict['ang_vels_z'] = Box(VEL_LOW, VEL_HIGH, (1,), np.float32)
         state_dict['linear_vels_x'] = Box(VEL_LOW, VEL_HIGH, (1,), np.float32)
         state_dict['linear_vels_y'] = Box(VEL_LOW, VEL_HIGH, (1,), np.float32)
-        state_dict['previous_action'] = Box(low=np.asarray([[self.action_space.low[0][0], MIN_VEL]]), 
-                                        high=np.asarray([[self.action_space.high[0][0], MAX_VEL]]), 
+        state_dict['previous_action'] = Box(low=np.asarray([[s_min, MIN_VEL]]), 
+                                        high=np.asarray([[s_max, MAX_VEL]]), 
                                         shape=(1, 2), dtype=np.float32)
         state_dict['progress'] = Box(0.0, 1.0, (1,), np.float32)
-        # Convert the ordered dictionary to a gym space dict
-        state_space = gym.spaces.Dict(state_dict)
+            # Convert the ordered dictionary to a gym space dict
+        self.state_space = gym.spaces.Dict(state_dict)
 
-        print(state_space)
+
+        #print(state_space)
         
-        self.observation_space = state_space #gym.spaces.Dict({
+        self.observation_space = self.state_space #gym.spaces.Dict({
             # 'laser_scan': Box(0, 255, (1, 80, 80), np.uint8),
             #'state': state_space
         #})
@@ -148,7 +151,30 @@ class F1tenthDatasetEnv(F110Env):
             raise NotImplementedError("TODO! Implement normalize_actions")
         
     
-    
+    def unflatten_batch(self, batch):
+        batch = np.asarray(batch)
+
+        assert len(batch.shape) == 2, "Batch should be 2D"
+
+        batch_dict = {}
+        
+        start_idx = 0
+        for key, space in self.state_space.spaces.items():
+            # Calculate how many columns this part of the observation takes up
+            space_shape = np.prod(space.shape)
+            
+            # Slice the appropriate columns from the batch
+            batch_slice = batch[:, start_idx:start_idx+space_shape]
+            
+            # If the space has multi-dimensions, reshape it accordingly
+            if len(space.shape) > 1:
+                batch_slice = batch_slice.reshape((-1,) + space.shape)
+            
+            batch_dict[key] = batch_slice
+            start_idx += space_shape
+
+        assert start_idx == batch.shape[1], "Mismatch in the number of columns"
+        return batch_dict
     
     
     """
@@ -265,6 +291,7 @@ class F1tenthDatasetEnv(F110Env):
         zarr_path: Union[str, os.PathLike] = None,
         clip: bool = True,
         # rng: Optional[Tuple[int, int]] = None,
+        skip_inital : int = 0,
         without_agents: Optional[np.ndarray] = [],
     ) -> Dict[str, Any]:
         """ 
@@ -363,8 +390,57 @@ class F1tenthDatasetEnv(F110Env):
         data_dict['infos'] = dict()
         # print("hi")
         data_dict['infos']['model_name']= root['model_name'][indices]
+
+        if skip_inital != 0:
+            data_dict = self.skip_inital_values(data_dict, skip_inital)
+
         return data_dict
+
+
+    def skip_inital_values(self, data_dict, skip_initial):
+        terminals = np.logical_or(data_dict['terminals'],  data_dict['timeouts'])
+        start_indices = np.where(terminals[:-1] & ~terminals[1:])[0] + 1
+        start_indices = np.concatenate(([0], start_indices))
+        # Prepare new data dict to store modified trajectories
+        new_data_dict = {
+            'rewards': [],
+            'terminals': [],
+            'timeouts': [],
+            'actions': [],
+            'log_probs': [],
+            'index': [],
+            'observations': [],
+            'infos': {
+                'model_name': []
+            }
+        }
+
+        for i in range(len(start_indices) - 1):
+            start, end = start_indices[i], start_indices[i + 1]
+            if (end - start) > skip_initial:
+                new_data_dict['rewards'].extend(data_dict['rewards'][start + skip_initial:end])
+                new_data_dict['terminals'].extend(data_dict['terminals'][start + skip_initial:end])
+                new_data_dict['timeouts'].extend(data_dict['timeouts'][start + skip_initial:end])
+                new_data_dict['actions'].extend(data_dict['actions'][start + skip_initial:end])
+                new_data_dict['log_probs'].extend(data_dict['log_probs'][start + skip_initial:end])
+                new_data_dict['index'].extend(data_dict['index'][start + skip_initial:end])
+    
+                new_data_dict['observations'].extend(data_dict['observations'][start + skip_initial:end,:])
+                new_data_dict['infos']['model_name'].extend(data_dict['infos']['model_name'][start + skip_initial:end])
         
+        # Convert lists back to numpy arrays
+        new_data_dict['rewards'] = np.array(new_data_dict['rewards'])
+        new_data_dict['terminals'] = np.array(new_data_dict['terminals'])
+        new_data_dict['timeouts'] = np.array(new_data_dict['timeouts'])
+        new_data_dict['actions'] = np.array(new_data_dict['actions'])
+        new_data_dict['log_probs'] = np.array(new_data_dict['log_probs'])
+        new_data_dict['index'] = np.array(new_data_dict['index'])
+        # for key in new_data_dict['observations'].keys():
+        new_data_dict['observations'] = np.array(new_data_dict['observations'])
+        new_data_dict['infos']['model_name'] = np.array(new_data_dict['infos']['model_name'])
+        return new_data_dict
+
+
     def observation_spec(self):
         return self.observation_space
     
