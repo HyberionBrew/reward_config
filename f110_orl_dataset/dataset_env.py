@@ -292,8 +292,10 @@ class F1tenthDatasetEnv(F110Env):
         clip: bool = True,
         # rng: Optional[Tuple[int, int]] = None,
         skip_inital : int = 0,
+        split_trajectories : int = 0,
         without_agents: Optional[np.ndarray] = [],
         alternate_reward: bool = False,
+        remove_short_trajectories: bool = False,
     ) -> Dict[str, Any]:
         """ 
         TODO! this is copied from https://github.com/rr-learning/trifinger_rl_datasets/blob/master/trifinger_rl_datasets/dataset_env.py
@@ -400,6 +402,8 @@ class F1tenthDatasetEnv(F110Env):
         if skip_inital != 0:
             data_dict = self.skip_inital_values(data_dict, skip_inital)
 
+        if split_trajectories != 0:
+            data_dict = self.split_trajectories(data_dict, split_trajectories, remove_short_trajectories)
         return data_dict
 
 
@@ -471,3 +475,76 @@ class F1tenthDatasetEnv(F110Env):
         # normalize the laser scan
         all_scans = np.array(all_scans)
         return all_scans
+
+    def split_trajectories(self, data_dict, Y, remove_short_trajectories):
+        terminals = data_dict['terminals']
+        timeouts = data_dict['timeouts']
+
+        # Identify start of each trajectory
+        start_indices = np.where(terminals[:-1] & ~terminals[1:])[0] + 1
+        # Add the first and last index for completeness
+        start_indices = np.concatenate(([0], start_indices, [len(terminals)]))
+
+        # Split each trajectory into sub-trajectories of length Y
+        new_data_dict = {
+            'rewards': [],
+            'terminals': [],
+            'timeouts': [],
+            'actions': [],
+            'log_probs': [],
+            'index': [],
+            'observations': [],
+            'infos': {
+                'model_name': []
+            }
+        }
+
+
+        for i in range(len(start_indices) - 1):
+            start, end = start_indices[i], start_indices[i + 1]
+
+            num_subtrajs = (end - start) // Y
+            last_subtraj_size = (end - start) % Y
+
+            # For all complete sub-trajectories
+            for j in range(num_subtrajs):
+                slice_start, slice_end = start + j * Y, start + (j + 1) * Y
+
+                new_data_dict['rewards'].extend(data_dict['rewards'][slice_start:slice_end])
+                new_data_dict['terminals'].extend(data_dict['terminals'][slice_start:slice_end])
+                new_data_dict['timeouts'].extend(data_dict['timeouts'][slice_start:slice_end])
+                new_data_dict['actions'].extend(data_dict['actions'][slice_start:slice_end])
+                new_data_dict['log_probs'].extend(data_dict['log_probs'][slice_start:slice_end])
+                new_data_dict['index'].extend(data_dict['index'][slice_start:slice_end])
+                new_data_dict['observations'].extend(data_dict['observations'][slice_start :slice_end,:]) 
+                new_data_dict['infos']['model_name'].extend(data_dict['infos']['model_name'][slice_start:slice_end])
+                new_data_dict['terminals'][-1] = True
+                new_data_dict['timeouts'][-1] = True
+            # For the last sub-trajectory (if exists)
+            if last_subtraj_size > 0 and (not timeouts[end-1]) and not remove_short_trajectories:
+                slice_start, slice_end = end - last_subtraj_size, end
+
+                new_data_dict['rewards'].extend(data_dict['rewards'][slice_start:slice_end])
+                new_data_dict['terminals'].extend(data_dict['terminals'][slice_start:slice_end])
+                new_data_dict['timeouts'].extend(data_dict['timeouts'][slice_start:slice_end])
+                new_data_dict['actions'].extend(data_dict['actions'][slice_start:slice_end])
+                new_data_dict['log_probs'].extend(data_dict['log_probs'][slice_start:slice_end])
+                new_data_dict['index'].extend(data_dict['index'][slice_start:slice_end])
+                new_data_dict['observations'].extend(data_dict['observations'][slice_start :slice_end,:])
+                new_data_dict['infos']['model_name'].extend(data_dict['infos']['model_name'][slice_start:slice_end])
+            #elif last_subtraj_size > 0:
+            #    new_data_dict['timeouts'][-1] = True
+            #    new_data_dict['terminals'][-1] = True
+        #
+        # Convert lists back to numpy arrays
+        new_data_dict['rewards'] = np.array(new_data_dict['rewards'])
+        new_data_dict['terminals'] = np.array(new_data_dict['terminals'])
+        new_data_dict['timeouts'] = np.array(new_data_dict['timeouts'])
+        new_data_dict['actions'] = np.array(new_data_dict['actions'])
+        new_data_dict['log_probs'] = np.array(new_data_dict['log_probs'])
+        new_data_dict['index'] = np.array(new_data_dict['index'])
+        
+        new_data_dict['observations'] = np.array(new_data_dict['observations'])
+        new_data_dict['infos']['model_name'] = np.array(new_data_dict['infos']['model_name'])
+
+        return new_data_dict
