@@ -49,10 +49,9 @@ class F110Actor(object):
                 if not isinstance(actions, torch.Tensor):
                     # print("crash here", actions)
                     # tf tensor to numpy
-                    if not isinstance(actions, np.ndarray):
-                        actions = actions.numpy()
+                    actions = actions.numpy()
                     # numpy to torch tensor
-                    print(self.model.policy.device)
+                    # print(self.model.policy.device)
                     actions = torch.tensor(actions, device=self.model.policy.device) #.unsqueeze(0)
                 # TODO! check what the actions shape is and should be
                 # print(actions.shape)
