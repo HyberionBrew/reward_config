@@ -125,7 +125,7 @@ if __name__ == "__main__":
                 num_agents=1, 
                 params=dict(vmin=0.5, vmax=2.0)),
                 render_mode="human")
-    rew_obj = RecomputeReward(zarr_path="/home/fabian/f110_rl/f110-sb3/trajectories4.zarr",
+    rew_obj = RecomputeReward(zarr_path="/mnt/hdd2/fabian/f1tenth_dope/ws_ope/f1tenth_orl_dataset/data/trajectories.zarr",
                               env = env,
                               decaying_crash=False, **standard_config)
     rew_obj.apply()
