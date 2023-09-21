@@ -20,7 +20,8 @@ class F110Actor(object):
                 "linear_vels_x",
                 "linear_vels_y",
                 "previous_action",
-                "progress",
+                "progress_sin",
+                "progress_cos",
                 "lidar_occupancy"
             ]
 

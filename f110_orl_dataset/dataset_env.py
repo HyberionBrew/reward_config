@@ -25,7 +25,8 @@ obs_dictionary_keys = [
     "linear_vels_x",
     "linear_vels_y",
     "previous_action",
-    "progress"
+    "progress_sin",
+    "progress_cos",
 ]
 def normalize(value, low, high):
     """Normalize value between -1 and 1."""
@@ -111,7 +112,8 @@ class F1tenthDatasetEnv(F110Env):
         state_dict['previous_action'] = Box(low=np.asarray([[s_min, MIN_VEL]]), 
                                         high=np.asarray([[s_max, MAX_VEL]]), 
                                         shape=(1, 2), dtype=np.float32)
-        state_dict['progress'] = Box(0.0, 1.0, (1,), np.float32)
+        state_dict['progress_sin'] = Box(-1.0, 1.0, (1,), np.float32)
+        state_dict['progress_cos'] = Box(-1.0, 1.0, (1,), np.float32)
             # Convert the ordered dictionary to a gym space dict
         self.state_space = gym.spaces.Dict(state_dict)
 
@@ -227,7 +229,7 @@ class F1tenthDatasetEnv(F110Env):
             # Unflatten the batch observations
             for key, obs in batch_dict.items():
                 # Skip specific keys that you don't want to normalize
-                if key not in ['lidar_occupancy', 'progress']:
+                if key not in ['lidar_occupancy', 'progress_sin', 'progress_cos']:
                     low = self.observation_space_orig.spaces[key].low
                     high = self.observation_space_orig.spaces[key].high
                     
@@ -404,6 +406,8 @@ class F1tenthDatasetEnv(F110Env):
 
         if split_trajectories != 0:
             data_dict = self.split_trajectories(data_dict, split_trajectories, remove_short_trajectories)
+        # print the number of all timesteps
+        print("Number of timesteps:", len(data_dict['rewards']))
         return data_dict
 
 
@@ -420,6 +424,7 @@ class F1tenthDatasetEnv(F110Env):
             'log_probs': [],
             'index': [],
             'observations': [],
+            'scans' : [],
             'infos': {
                 'model_name': []
             }
@@ -434,8 +439,10 @@ class F1tenthDatasetEnv(F110Env):
                 new_data_dict['actions'].extend(data_dict['actions'][start + skip_initial:end])
                 new_data_dict['log_probs'].extend(data_dict['log_probs'][start + skip_initial:end])
                 new_data_dict['index'].extend(data_dict['index'][start + skip_initial:end])
-    
+
                 new_data_dict['observations'].extend(data_dict['observations'][start + skip_initial:end,:])
+                new_data_dict['scans'].extend(data_dict['scans'][start + skip_initial:end,:])
+
                 new_data_dict['infos']['model_name'].extend(data_dict['infos']['model_name'][start + skip_initial:end])
         
         # Convert lists back to numpy arrays
@@ -447,6 +454,7 @@ class F1tenthDatasetEnv(F110Env):
         new_data_dict['index'] = np.array(new_data_dict['index'])
         # for key in new_data_dict['observations'].keys():
         new_data_dict['observations'] = np.array(new_data_dict['observations'])
+        new_data_dict['scans'] = np.array(new_data_dict['scans'])
         new_data_dict['infos']['model_name'] = np.array(new_data_dict['infos']['model_name'])
         return new_data_dict
 
@@ -494,6 +502,7 @@ class F1tenthDatasetEnv(F110Env):
             'log_probs': [],
             'index': [],
             'observations': [],
+            'scans' : [],
             'infos': {
                 'model_name': []
             }
@@ -517,6 +526,7 @@ class F1tenthDatasetEnv(F110Env):
                 new_data_dict['log_probs'].extend(data_dict['log_probs'][slice_start:slice_end])
                 new_data_dict['index'].extend(data_dict['index'][slice_start:slice_end])
                 new_data_dict['observations'].extend(data_dict['observations'][slice_start :slice_end,:]) 
+                new_data_dict['scans'].extend(data_dict['scans'][slice_start :slice_end,:])
                 new_data_dict['infos']['model_name'].extend(data_dict['infos']['model_name'][slice_start:slice_end])
                 new_data_dict['terminals'][-1] = True
                 new_data_dict['timeouts'][-1] = True
@@ -531,6 +541,7 @@ class F1tenthDatasetEnv(F110Env):
                 new_data_dict['log_probs'].extend(data_dict['log_probs'][slice_start:slice_end])
                 new_data_dict['index'].extend(data_dict['index'][slice_start:slice_end])
                 new_data_dict['observations'].extend(data_dict['observations'][slice_start :slice_end,:])
+                new_data_dict['scans'].extend(data_dict['scans'][slice_start :slice_end,:])
                 new_data_dict['infos']['model_name'].extend(data_dict['infos']['model_name'][slice_start:slice_end])
             #elif last_subtraj_size > 0:
             #    new_data_dict['timeouts'][-1] = True
@@ -545,6 +556,7 @@ class F1tenthDatasetEnv(F110Env):
         new_data_dict['index'] = np.array(new_data_dict['index'])
         
         new_data_dict['observations'] = np.array(new_data_dict['observations'])
+        new_data_dict['scans'] = np.array(new_data_dict['scans'])
         new_data_dict['infos']['model_name'] = np.array(new_data_dict['infos']['model_name'])
 
         return new_data_dict
