@@ -111,7 +111,8 @@ class F1tenthDatasetEnv(F110Env):
         state_dict['previous_action'] = Box(low=np.asarray([[s_min, MIN_VEL]]), 
                                         high=np.asarray([[s_max, MAX_VEL]]), 
                                         shape=(1, 2), dtype=np.float32)
-        state_dict['progress'] = Box(0.0, 1.0, (1,), np.float32)
+        state_dict['progress_sin'] = Box(-1.0, 1.0, (1,), np.float32)
+        state_dict['progress_cos'] = Box(-1.0, 1.0, (1,), np.float32)
             # Convert the ordered dictionary to a gym space dict
         self.state_space = gym.spaces.Dict(state_dict)
 

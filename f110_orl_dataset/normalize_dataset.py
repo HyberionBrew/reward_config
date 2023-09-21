@@ -33,7 +33,8 @@ class Normalize:
         state_dict['previous_action'] = Box(low=np.asarray([[s_min, MIN_VEL]]), 
                                         high=np.asarray([[s_max, MAX_VEL]]), 
                                         shape=(1, 2), dtype=np.float32)
-        state_dict['progress'] = Box(0.0, 1.0, (1,), np.float32)
+        state_dict['progress_sin'] = Box(-1.0, 1.0, (1,), np.float32)
+        state_dict['progress_cos'] = Box(-1.0, 1.0, (1,), np.float32)
             # Convert the ordered dictionary to a gym space dict
         self.state_space = gym.spaces.Dict(state_dict)
 
@@ -47,7 +48,8 @@ class Normalize:
         new_state_dict['previous_action'] = Box(low=np.asarray([[-1.0, -1.0]]), 
                                         high=np.asarray([[1.0, 1.0]]), 
                                         shape=(1, 2), dtype=np.float32)
-        new_state_dict['progress'] = Box(0.0, 1.0, (1,), np.float32)
+        new_state_dict['progress_sin'] = Box(-1.0, 1.0, (1,), np.float32)
+        new_state_dict['progress_cos'] = Box(-1.0, 1.0, (1,), np.float32)
         self.new_state_space = gym.spaces.Dict(new_state_dict)
 
     def unflatten_batch(self, batch):
@@ -79,7 +81,7 @@ class Normalize:
         # Unflatten the batch observations
         for key, obs in batch_dict.items():
             # Skip specific keys that you don't want to normalize
-            if key not in ['progress', 'lidar_occupancy']:
+            if key not in ['progress_sin', 'progress_cos', 'lidar_occupancy']:
                 low = self.state_space.spaces[key].low
                 high = self.state_space.spaces[key].high
                 
