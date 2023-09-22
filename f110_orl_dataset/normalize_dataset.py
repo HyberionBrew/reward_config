@@ -81,7 +81,7 @@ class Normalize:
         # Unflatten the batch observations
         for key, obs in batch_dict.items():
             # Skip specific keys that you don't want to normalize
-            if key not in ['progress_sin','progress_cos', 'lidar_occupancy']:
+            if key not in ['progress_sin', 'progress_cos', 'lidar_occupancy']:
                 low = self.state_space.spaces[key].low
                 high = self.state_space.spaces[key].high
                 
