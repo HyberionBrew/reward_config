@@ -19,7 +19,7 @@ class RecomputeReward:
         rewards = []
         resetting = True
         for data in chunk:
-            i, observations, done, truncated, collision = data
+            i, action, observations, done, truncated, collision = data
             obs = {}
             for key in observations.keys():
                 obs[key] = [observations[key][i]]
@@ -27,16 +27,18 @@ class RecomputeReward:
             
             if resetting:
                 pose = (obs['poses_x'][0], obs['poses_y'][0])
-                self.reset(pose)
-            reward = self.step(np.array([[0,0]]), obs, collision, done)
+                velocity = obs['linear_vels_x'][0]
+                self.reset(pose, velocity=velocity)
+            reward = self.step(np.array([action]), obs, collision, done)
             rewards.append(reward)
             resetting = truncated or done
         return rewards
 
     def apply(self, use_new_rewards = True):
-        warnings.warn("Rewards using actions are not supported, check for yourself you are not using any. \
-                    Most other rewards are slightly of, since reset obs is not recorded in the dataset \
-                    Issues steam from the data available in the dataset.", UserWarning)
+        # they are now supported
+        #warnings.warn("Rewards using actions are not supported, check for yourself you are not using any. \
+        #            Most other rewards are slightly of, since reset obs is not recorded in the dataset \
+        #            Issues steam from the data available in the dataset.", UserWarning)
         if not(use_new_rewards):
             raise NotImplementedError
         
@@ -45,12 +47,13 @@ class RecomputeReward:
             done_val = self.root["done"]
             truncated_val = self.root["truncated"]
             collision_val = self.root["collision"]
+            action = self.root["raw_actions"]
             # create new zarr group of size 
             # Split the data into chunks that can be processed sequentially.
             chunks = []
             current_chunk = []
             for i in tqdm(range(len(self.root["rewards"]))):
-                current_chunk.append((i, observations, done_val[i], truncated_val[i], collision_val[i]))
+                current_chunk.append((i, action[i,:], observations, done_val[i], truncated_val[i], collision_val[i]))
                 if truncated_val[i] or done_val[i]:
                     chunks.append(current_chunk)
                     current_chunk = []
@@ -102,18 +105,18 @@ class RecomputeReward:
                                       collision, done)
         return reward
     
-    def reset(self, pose):
-        self.reward.reset(pose)
+    def reset(self, pose , velocity=1.5):
+        self.reward.reset(pose, velocity=velocity)
 
 standard_config = {
     "collision_penalty": 0.0,
     "progress_weight": 0.0,
-    "raceline_delta_weight": 1.0,
+    "raceline_delta_weight": 0.0,
     "velocity_weight": 0.0,
     "steering_change_weight": 0.0,
     "velocity_change_weight": 0.0,
     "pure_progress_weight": 0.0,
-    "min_action_weight" : 0.0,
+    "min_action_weight" : 1.0,
     "min_lidar_ray_weight" : 0.0,
     "inital_velocity": 1.5,
     "normalize": False,
@@ -125,7 +128,8 @@ if __name__ == "__main__":
                 num_agents=1, 
                 params=dict(vmin=0.5, vmax=2.0)),
                 render_mode="human")
-    rew_obj = RecomputeReward(zarr_path="/mnt/hdd2/fabian/f1tenth_dope/ws_ope/f1tenth_orl_dataset/data/trajectories.zarr",
+    rew_obj = RecomputeReward(zarr_path="/home/fabian/f110_rl/f110-sb3/trajectories5.zarr",
+                              # "/mnt/hdd2/fabian/f1tenth_dope/ws_ope/f1tenth_orl_dataset/data/trajectories.zarr",
                               env = env,
                               decaying_crash=False, **standard_config)
     rew_obj.apply()
@@ -139,4 +143,4 @@ if __name__ == "__main__":
     print(rew_obj.root["rewards"][int(y-20): int(y+5)])
     print(rew_obj.root["new_rewards"][int(y-20): int(y+5)])
     print(rew_obj.root["done"][int(y-20): int(y+5)])
-
+    print(rew_obj.root["raw_actions"][int(y-20): int(y+5)])
