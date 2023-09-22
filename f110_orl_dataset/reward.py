@@ -284,8 +284,8 @@ class MinVelocityChangeReward(object):
         # print(delta)
         # print(reward)
         return reward
-    def reset(self):
-        self._last_velocity = self.inital_velocity
+    def reset(self, velocity):
+        self._last_velocity = velocity
 
 """
 @brief    Reward function based on the speed of the car
@@ -447,8 +447,8 @@ class MixedReward(object):
         # print(rewards_dict)
         return reward , rewards_dict
 
-    def reset(self, pose: Tuple[float, float]):
-        self.velocity_change_reward.reset()
+    def reset(self, pose: Tuple[float, float], velocity :float):
+        self.velocity_change_reward.reset(velocity)
         self.steering_change_reward.reset()
         # print(pose)
         self.progress_reward.reset(new_pose=pose)
