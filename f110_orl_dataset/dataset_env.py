@@ -296,8 +296,12 @@ class F1tenthDatasetEnv(F110Env):
         skip_inital : int = 0,
         split_trajectories : int = 0,
         without_agents: Optional[np.ndarray] = [],
+        only_agents: Optional[np.ndarray] = [],
         alternate_reward: bool = False,
         remove_short_trajectories: bool = False,
+        min_trajectory_length: int = 0,
+        skip_inital_random_min: int = 0,
+        skip_inital_random_max: int = 0,
     ) -> Dict[str, Any]:
         """ 
         TODO! this is copied from https://github.com/rr-learning/trifinger_rl_datasets/blob/master/trifinger_rl_datasets/dataset_env.py
@@ -338,6 +342,7 @@ class F1tenthDatasetEnv(F110Env):
                   height, width) containing the image data. The cannels
                   are ordered as RGB.
         """
+        assert len(only_agents)==0 or len(without_agents)==0, "Cannot specify both only_agents and without_agents"
         # The ORL Dataset is loaded from Zarr arrays that look as follows:
         # TODO!
         if zarr_path is None:
@@ -356,6 +361,10 @@ class F1tenthDatasetEnv(F110Env):
         data_dict = {}
         print("len(model_names)", len(model_names))
         indices = np.where(~np.isin(model_names, without_agents))[0]
+        if len(without_agents) > 0:
+            indices = np.where(~np.isin(model_names, without_agents))[0]
+        if len(only_agents) > 0:
+            indices = np.where(np.isin(model_names, only_agents))[0]
         print("Indices:", len(indices))
         if alternate_reward:
             print("Using alternate reward")
@@ -403,13 +412,67 @@ class F1tenthDatasetEnv(F110Env):
 
         if skip_inital != 0:
             data_dict = self.skip_inital_values(data_dict, skip_inital)
+        if skip_inital_random_max != 0:
+            data_dict = self.skip_inital_values_random(data_dict, 
+                                                skip_inital_random_min,
+                                                skip_inital_random_max)
 
         if split_trajectories != 0:
             data_dict = self.split_trajectories(data_dict, split_trajectories, remove_short_trajectories)
         # print the number of all timesteps
+        if min_trajectory_length != 0:
+            data_dict = self.filter_trajectories_by_length(data_dict, min_trajectory_length)
         print("Number of timesteps:", len(data_dict['rewards']))
+        
         return data_dict
+    
+    def skip_inital_values_random(self, data_dict, skip_inital_min,skip_initial_max):
+        terminals = np.logical_or(data_dict['terminals'],  data_dict['timeouts'])
+        start_indices = np.where(terminals[:-1] & ~terminals[1:])[0] + 1
+        start_indices = np.concatenate(([0], start_indices))
+        # Prepare new data dict to store modified trajectories
+        new_data_dict = {
+            'rewards': [],
+            'terminals': [],
+            'timeouts': [],
+            'actions': [],
+            'log_probs': [],
+            'index': [],
+            'observations': [],
+            'scans' : [],
+            'infos': {
+                'model_name': []
+            }
+        }
 
+        for i in range(len(start_indices) - 1):
+            start, end = start_indices[i], start_indices[i + 1]
+            skip_initial = np.random.randint(skip_inital_min, skip_initial_max)
+            if (end - start) > skip_initial:
+                new_data_dict['rewards'].extend(data_dict['rewards'][start + skip_initial:end])
+                new_data_dict['terminals'].extend(data_dict['terminals'][start + skip_initial:end])
+                new_data_dict['timeouts'].extend(data_dict['timeouts'][start + skip_initial:end])
+                new_data_dict['actions'].extend(data_dict['actions'][start + skip_initial:end])
+                new_data_dict['log_probs'].extend(data_dict['log_probs'][start + skip_initial:end])
+                new_data_dict['index'].extend(data_dict['index'][start + skip_initial:end])
+
+                new_data_dict['observations'].extend(data_dict['observations'][start + skip_initial:end,:])
+                new_data_dict['scans'].extend(data_dict['scans'][start + skip_initial:end,:])
+
+                new_data_dict['infos']['model_name'].extend(data_dict['infos']['model_name'][start + skip_initial:end])
+        
+        # Convert lists back to numpy arrays
+        new_data_dict['rewards'] = np.array(new_data_dict['rewards'])
+        new_data_dict['terminals'] = np.array(new_data_dict['terminals'])
+        new_data_dict['timeouts'] = np.array(new_data_dict['timeouts'])
+        new_data_dict['actions'] = np.array(new_data_dict['actions'])
+        new_data_dict['log_probs'] = np.array(new_data_dict['log_probs'])
+        new_data_dict['index'] = np.array(new_data_dict['index'])
+        # for key in new_data_dict['observations'].keys():
+        new_data_dict['observations'] = np.array(new_data_dict['observations'])
+        new_data_dict['scans'] = np.array(new_data_dict['scans'])
+        new_data_dict['infos']['model_name'] = np.array(new_data_dict['infos']['model_name'])
+        return new_data_dict
 
     def skip_inital_values(self, data_dict, skip_initial):
         terminals = np.logical_or(data_dict['terminals'],  data_dict['timeouts'])
@@ -456,6 +519,54 @@ class F1tenthDatasetEnv(F110Env):
         new_data_dict['observations'] = np.array(new_data_dict['observations'])
         new_data_dict['scans'] = np.array(new_data_dict['scans'])
         new_data_dict['infos']['model_name'] = np.array(new_data_dict['infos']['model_name'])
+        return new_data_dict
+
+    import numpy as np
+
+    def filter_trajectories_by_length(self, data_dict, min_length):
+        terminals = np.logical_or(data_dict['terminals'], data_dict['timeouts'])
+        start_indices = np.where(terminals[:-1] & ~terminals[1:])[0] + 1
+        start_indices = np.concatenate(([0], start_indices))
+
+        # Prepare new data dict to store modified trajectories
+        new_data_dict = {
+            'rewards': [],
+            'terminals': [],
+            'timeouts': [],
+            'actions': [],
+            'log_probs': [],
+            'index': [],
+            'observations': [],
+            'scans': [],
+            'infos': {
+                'model_name': []
+            }
+        }
+
+        for i in range(len(start_indices) - 1):
+            start, end = start_indices[i], start_indices[i + 1]
+            if (end - start) >= min_length:
+                new_data_dict['rewards'].extend(data_dict['rewards'][start:end])
+                new_data_dict['terminals'].extend(data_dict['terminals'][start:end])
+                new_data_dict['timeouts'].extend(data_dict['timeouts'][start:end])
+                new_data_dict['actions'].extend(data_dict['actions'][start:end])
+                new_data_dict['log_probs'].extend(data_dict['log_probs'][start:end])
+                new_data_dict['index'].extend(data_dict['index'][start:end])
+                new_data_dict['observations'].extend(data_dict['observations'][start:end,:])
+                new_data_dict['scans'].extend(data_dict['scans'][start:end,:])
+                new_data_dict['infos']['model_name'].extend(data_dict['infos']['model_name'][start:end])
+
+        # Convert lists back to numpy arrays
+        new_data_dict['rewards'] = np.array(new_data_dict['rewards'])
+        new_data_dict['terminals'] = np.array(new_data_dict['terminals'])
+        new_data_dict['timeouts'] = np.array(new_data_dict['timeouts'])
+        new_data_dict['actions'] = np.array(new_data_dict['actions'])
+        new_data_dict['log_probs'] = np.array(new_data_dict['log_probs'])
+        new_data_dict['index'] = np.array(new_data_dict['index'])
+        new_data_dict['observations'] = np.array(new_data_dict['observations'])
+        new_data_dict['scans'] = np.array(new_data_dict['scans'])
+        new_data_dict['infos']['model_name'] = np.array(new_data_dict['infos']['model_name'])
+        
         return new_data_dict
 
 
@@ -528,7 +639,7 @@ class F1tenthDatasetEnv(F110Env):
                 new_data_dict['observations'].extend(data_dict['observations'][slice_start :slice_end,:]) 
                 new_data_dict['scans'].extend(data_dict['scans'][slice_start :slice_end,:])
                 new_data_dict['infos']['model_name'].extend(data_dict['infos']['model_name'][slice_start:slice_end])
-                new_data_dict['terminals'][-1] = True
+                new_data_dict['terminals'][-1] = False
                 new_data_dict['timeouts'][-1] = True
             # For the last sub-trajectory (if exists)
             if last_subtraj_size > 0 and (not timeouts[end-1]) and not remove_short_trajectories:

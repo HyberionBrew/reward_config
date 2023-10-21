@@ -59,16 +59,21 @@ class RecomputeReward:
                     current_chunk = []
 
             # Process each chunk in parallel
-            with Pool(processes=4) as pool:
+            with Pool(processes=8) as pool:
                 results = list(tqdm(pool.imap(self.process_chunk, chunks), total=len(chunks)))
 
             # Flatten the results
             new_rewards = [reward for sublist in results for reward in sublist]
             
         else:
-            finished = self.root["done"] or self.root["truncated"]
+            # print("here")
+            # where collision is true set reward to -1000
+            new_rewards = np.zeros_like(self.root["collision"], dtype=float) # .copy()
+            collision_indices = np.where(self.root["collision"])[0]
+            new_rewards[collision_indices] = -1000
+            #finished = self.root["done"] or self.root["truncated"]
             
-            new_rewards = self.decaying_reward(self.root["collision"], finished)
+            #new_rewards = self.decaying_reward(self.root["collision"], finished)
             #if True:
             #    new_rewards = np.zeros_like(self.root["collision"], dtype=float) # 
             #    collision_indices = np.where(self.root["collision"])[0]
@@ -116,7 +121,7 @@ standard_config = {
     "steering_change_weight": 0.0,
     "velocity_change_weight": 0.0,
     "pure_progress_weight": 0.0,
-    "min_action_weight" : 1.0,
+    "min_action_weight" : 0.0,
     "min_lidar_ray_weight" : 0.0,
     "inital_velocity": 1.5,
     "normalize": False,
@@ -126,12 +131,12 @@ if __name__ == "__main__":
     env = gym.make("f110_gym:f110-v0",
                 config = dict(map="Infsaal",
                 num_agents=1, 
-                params=dict(vmin=0.5, vmax=2.0)),
+                params=dict(vmin=0.8, vmax=2.0)),
                 render_mode="human")
-    rew_obj = RecomputeReward(zarr_path="/home/fabian/f110_rl/f110-sb3/trajectories5.zarr",
+    rew_obj = RecomputeReward(zarr_path="/mnt/hdd2/fabian/f1tenth_dope/ws_ope/f1tenth_orl_dataset/data/trajectories.zarr",
                               # "/mnt/hdd2/fabian/f1tenth_dope/ws_ope/f1tenth_orl_dataset/data/trajectories.zarr",
                               env = env,
-                              decaying_crash=False, **standard_config)
+                              decaying_crash=True, **standard_config)
     rew_obj.apply()
     # sanity check
     x = np.where(rew_obj.root["done"] or rew_obj.root["truncated"] == 1)[0]
@@ -139,8 +144,10 @@ if __name__ == "__main__":
 
     print(rew_obj.root["rewards"][int(x[0])-5: int(x[0])+5])
     print(rew_obj.root["new_rewards"][int(x[0]-5): int(x[0]+5)])
+    print(rew_obj.root["collision"][int(x[0]-5): int(x[0]+5)])
     y = 1131
     print(rew_obj.root["rewards"][int(y-20): int(y+5)])
     print(rew_obj.root["new_rewards"][int(y-20): int(y+5)])
     print(rew_obj.root["done"][int(y-20): int(y+5)])
+    print(rew_obj.root["collision"][int(y-5): int(y+5)])
     print(rew_obj.root["raw_actions"][int(y-20): int(y+5)])
