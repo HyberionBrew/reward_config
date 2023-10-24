@@ -367,7 +367,7 @@ class MixedReward(object):
         self.min_action_reward = MinActionReward(env.action_space.low[0][0],
                                                     env.action_space.high[0][0])
         
-        self.min_lidar_ray_reward = MinLidarRayReward()
+        self.min_lidar_ray_reward = MinLidarRayReward(high=0.3)
 
         # for each reward instantiate a normalization object
         self.normalizers = []
@@ -415,7 +415,7 @@ class MixedReward(object):
             min_action_reward = self.min_action_reward(action[0])
             rewards[6] = min_action_reward
         if self.min_lidar_ray_weight > 0.0001 or self.save_all_rewards:
-            min_lidar_ray_reward = self.min_lidar_ray_reward(obs['scans'][0])
+            min_lidar_ray_reward = self.min_lidar_ray_reward(obs['lidar_occupancy'][0])
             rewards[7] = min_lidar_ray_reward
         #print(" [ProgressReward, RacelineDeltaReward, VelocityReward, MinSteeringChangeReward, MinVelocityChangeReward]")
         #print("before normalization: ", rewards)

@@ -26,7 +26,8 @@ class Normalize:
         # Append each box in desired order
         state_dict['poses_x'] = Box(POSE_LOW, POSE_HIGH, (1,), np.float32)
         state_dict['poses_y'] = Box(POSE_LOW, POSE_HIGH, (1,), np.float32)
-        state_dict['poses_theta'] = Box(POSE_THETA_LOW, POSE_THETA_HIGH, (1,), np.float32)
+        state_dict['theta_sin'] = Box(-1.0, 1.0, (1,), np.float32)
+        state_dict['theta_cos'] = Box(-1.0, 1.0, (1,), np.float32)
         state_dict['ang_vels_z'] = Box(VEL_LOW, VEL_HIGH, (1,), np.float32)
         state_dict['linear_vels_x'] = Box(VEL_LOW, VEL_HIGH, (1,), np.float32)
         state_dict['linear_vels_y'] = Box(VEL_LOW, VEL_HIGH, (1,), np.float32)
@@ -41,7 +42,8 @@ class Normalize:
         new_state_dict = OrderedDict()
         new_state_dict['poses_x'] = Box(-1.0, 1.0, (1,), np.float32)
         new_state_dict['poses_y'] = Box(-1.0, 1.0, (1,), np.float32)
-        new_state_dict['poses_theta'] = Box(-1.0, 1.0, (1,), np.float32)
+        new_state_dict['theta_sin'] = Box(-1.0, 1.0, (1,), np.float32)
+        new_state_dict['theta_cos'] = Box(-1.0, 1.0, (1,), np.float32)
         new_state_dict['ang_vels_z'] = Box(-1.0, 1.0, (1,), np.float32)
         new_state_dict['linear_vels_x'] = Box(-1.0, 1.0, (1,), np.float32)
         new_state_dict['linear_vels_y'] = Box(-1.0, 1.0, (1,), np.float32)
@@ -81,7 +83,7 @@ class Normalize:
         # Unflatten the batch observations
         for key, obs in batch_dict.items():
             # Skip specific keys that you don't want to normalize
-            if key not in ['progress_sin', 'progress_cos', 'lidar_occupancy']:
+            if key not in ['progress_sin', 'progress_cos', 'theta_cos','poses_theta', 'theta_sin','lidar_occupancy']:
                 low = self.state_space.spaces[key].low
                 high = self.state_space.spaces[key].high
                 
