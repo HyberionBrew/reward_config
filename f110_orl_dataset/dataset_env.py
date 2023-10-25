@@ -106,7 +106,8 @@ class F1tenthDatasetEnv(F110Env):
         # Append each box in desired order
         state_dict['poses_x'] = Box(POSE_LOW, POSE_HIGH, (1,), np.float32)
         state_dict['poses_y'] = Box(POSE_LOW, POSE_HIGH, (1,), np.float32)
-        state_dict['poses_theta'] = Box(POSE_THETA_LOW, POSE_THETA_HIGH, (1,), np.float32)
+        state_dict['theta_sin'] = Box(-1.0, 1.0, (1,), np.float32)
+        state_dict['theta_cos'] = Box(-1.0, 1.0, (1,), np.float32)
         state_dict['ang_vels_z'] = Box(VEL_LOW, VEL_HIGH, (1,), np.float32)
         state_dict['linear_vels_x'] = Box(VEL_LOW, VEL_HIGH, (1,), np.float32)
         state_dict['linear_vels_y'] = Box(VEL_LOW, VEL_HIGH, (1,), np.float32)
@@ -230,7 +231,7 @@ class F1tenthDatasetEnv(F110Env):
             # Unflatten the batch observations
             for key, obs in batch_dict.items():
                 # Skip specific keys that you don't want to normalize
-                if key not in ['lidar_occupancy', 'progress_sin', 'progress_cos']:
+                if key not in ['lidar_occupancy', 'progress_sin', 'progress_cos', 'theta_cos', 'theta_sin']:
                     low = self.observation_space_orig.spaces[key].low
                     high = self.observation_space_orig.spaces[key].high
                     
@@ -263,7 +264,7 @@ class F1tenthDatasetEnv(F110Env):
         # padd to max_length
         # for trajectories in 
         print([len(tra) for tra in trajectories])
-        print("hi")
+        
         return dataset
     
     def get_change_indices(self, model_names):
@@ -378,6 +379,7 @@ class F1tenthDatasetEnv(F110Env):
         # print("hi")
         data_dict['actions'] = root['actions'][indices]
         data_dict['log_probs'] = root['log_prob'][indices]
+        data_dict['raw_actions'] = root['raw_actions'][indices]
         # print("hi")
         data_dict['index'] = indices #root['timestep'][indices]
         # loop over observation keys
@@ -437,6 +439,7 @@ class F1tenthDatasetEnv(F110Env):
             'terminals': [],
             'timeouts': [],
             'actions': [],
+            'raw_actions': [],
             'log_probs': [],
             'index': [],
             'observations': [],
@@ -454,6 +457,7 @@ class F1tenthDatasetEnv(F110Env):
                 new_data_dict['terminals'].extend(data_dict['terminals'][start + skip_initial:end])
                 new_data_dict['timeouts'].extend(data_dict['timeouts'][start + skip_initial:end])
                 new_data_dict['actions'].extend(data_dict['actions'][start + skip_initial:end])
+                new_data_dict['raw_actions'].extend(data_dict['raw_actions'][start + skip_initial:end])
                 new_data_dict['log_probs'].extend(data_dict['log_probs'][start + skip_initial:end])
                 new_data_dict['index'].extend(data_dict['index'][start + skip_initial:end])
 
@@ -467,6 +471,7 @@ class F1tenthDatasetEnv(F110Env):
         new_data_dict['terminals'] = np.array(new_data_dict['terminals'])
         new_data_dict['timeouts'] = np.array(new_data_dict['timeouts'])
         new_data_dict['actions'] = np.array(new_data_dict['actions'])
+        new_data_dict['raw_actions'] = np.array(new_data_dict['raw_actions'])
         new_data_dict['log_probs'] = np.array(new_data_dict['log_probs'])
         new_data_dict['index'] = np.array(new_data_dict['index'])
         # for key in new_data_dict['observations'].keys():
@@ -485,6 +490,7 @@ class F1tenthDatasetEnv(F110Env):
             'terminals': [],
             'timeouts': [],
             'actions': [],
+            'raw_actions': [],
             'log_probs': [],
             'index': [],
             'observations': [],
@@ -501,6 +507,7 @@ class F1tenthDatasetEnv(F110Env):
                 new_data_dict['terminals'].extend(data_dict['terminals'][start + skip_initial:end])
                 new_data_dict['timeouts'].extend(data_dict['timeouts'][start + skip_initial:end])
                 new_data_dict['actions'].extend(data_dict['actions'][start + skip_initial:end])
+                new_data_dict['raw_actions'].extend(data_dict['raw_actions'][start + skip_initial:end])
                 new_data_dict['log_probs'].extend(data_dict['log_probs'][start + skip_initial:end])
                 new_data_dict['index'].extend(data_dict['index'][start + skip_initial:end])
 
@@ -514,6 +521,7 @@ class F1tenthDatasetEnv(F110Env):
         new_data_dict['terminals'] = np.array(new_data_dict['terminals'])
         new_data_dict['timeouts'] = np.array(new_data_dict['timeouts'])
         new_data_dict['actions'] = np.array(new_data_dict['actions'])
+        new_data_dict['raw_actions'] = np.array(new_data_dict['raw_actions'])
         new_data_dict['log_probs'] = np.array(new_data_dict['log_probs'])
         new_data_dict['index'] = np.array(new_data_dict['index'])
         # for key in new_data_dict['observations'].keys():
@@ -535,6 +543,7 @@ class F1tenthDatasetEnv(F110Env):
             'terminals': [],
             'timeouts': [],
             'actions': [],
+            'raw_actions': [],
             'log_probs': [],
             'index': [],
             'observations': [],
@@ -551,6 +560,7 @@ class F1tenthDatasetEnv(F110Env):
                 new_data_dict['terminals'].extend(data_dict['terminals'][start:end])
                 new_data_dict['timeouts'].extend(data_dict['timeouts'][start:end])
                 new_data_dict['actions'].extend(data_dict['actions'][start:end])
+                new_data_dict['raw_actions'].extend(data_dict['raw_actions'][start:end])
                 new_data_dict['log_probs'].extend(data_dict['log_probs'][start:end])
                 new_data_dict['index'].extend(data_dict['index'][start:end])
                 new_data_dict['observations'].extend(data_dict['observations'][start:end,:])
@@ -562,6 +572,7 @@ class F1tenthDatasetEnv(F110Env):
         new_data_dict['terminals'] = np.array(new_data_dict['terminals'])
         new_data_dict['timeouts'] = np.array(new_data_dict['timeouts'])
         new_data_dict['actions'] = np.array(new_data_dict['actions'])
+        new_data_dict['raw_actions'] = np.array(new_data_dict['raw_actions'])
         new_data_dict['log_probs'] = np.array(new_data_dict['log_probs'])
         new_data_dict['index'] = np.array(new_data_dict['index'])
         new_data_dict['observations'] = np.array(new_data_dict['observations'])
@@ -611,6 +622,7 @@ class F1tenthDatasetEnv(F110Env):
             'terminals': [],
             'timeouts': [],
             'actions': [],
+            'raw_actions': [],
             'log_probs': [],
             'index': [],
             'observations': [],
@@ -635,6 +647,7 @@ class F1tenthDatasetEnv(F110Env):
                 new_data_dict['terminals'].extend(data_dict['terminals'][slice_start:slice_end])
                 new_data_dict['timeouts'].extend(data_dict['timeouts'][slice_start:slice_end])
                 new_data_dict['actions'].extend(data_dict['actions'][slice_start:slice_end])
+                new_data_dict['raw_actions'].extend(data_dict['raw_actions'][slice_start:slice_end])
                 new_data_dict['log_probs'].extend(data_dict['log_probs'][slice_start:slice_end])
                 new_data_dict['index'].extend(data_dict['index'][slice_start:slice_end])
                 new_data_dict['observations'].extend(data_dict['observations'][slice_start :slice_end,:]) 
@@ -650,6 +663,7 @@ class F1tenthDatasetEnv(F110Env):
                 new_data_dict['terminals'].extend(data_dict['terminals'][slice_start:slice_end])
                 new_data_dict['timeouts'].extend(data_dict['timeouts'][slice_start:slice_end])
                 new_data_dict['actions'].extend(data_dict['actions'][slice_start:slice_end])
+                new_data_dict['raw_actions'].extend(data_dict['raw_actions'][slice_start:slice_end])
                 new_data_dict['log_probs'].extend(data_dict['log_probs'][slice_start:slice_end])
                 new_data_dict['index'].extend(data_dict['index'][slice_start:slice_end])
                 new_data_dict['observations'].extend(data_dict['observations'][slice_start :slice_end,:])
@@ -664,6 +678,7 @@ class F1tenthDatasetEnv(F110Env):
         new_data_dict['terminals'] = np.array(new_data_dict['terminals'])
         new_data_dict['timeouts'] = np.array(new_data_dict['timeouts'])
         new_data_dict['actions'] = np.array(new_data_dict['actions'])
+        new_data_dict['raw_actions'] = np.array(new_data_dict['raw_actions'])
         new_data_dict['log_probs'] = np.array(new_data_dict['log_probs'])
         new_data_dict['index'] = np.array(new_data_dict['index'])
         

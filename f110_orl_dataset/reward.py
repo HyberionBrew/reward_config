@@ -39,7 +39,9 @@ class Progress:
         # assert pose points must be Nx2
         pose_points = np.array(pose_points)
         #print(pose_points.shape)
-
+        #print(pose_points)
+        #print("distance calc")
+        #print(self.previous_closest_idx)
         def projected_distance(pose):
             rel_pose = pose - self.centerline[:-1]
             t = np.sum(rel_pose * self.segment_vectors, axis=1) / np.sum(self.segment_vectors**2, axis=1)
@@ -70,6 +72,8 @@ class Progress:
         return np.array([projected_distance(pose) for pose in pose_points])
     
     def get_progress(self, pose: Tuple[float, float]):
+        #print("---get")
+        #print(pose)
         progress =  self.distance_along_centerline_np(pose)
         # print(self.cumulative_lengths.shape)
         # print(self.cumulative_lengths[-1])
@@ -158,11 +162,20 @@ class ProgressReward(object):
         pose = pose[np.newaxis, :]
         self.progress_tracker.reset(pose)
         self.current_progress = self.progress_tracker.get_progress(pose)[0]
+        #print("reset")
+        #print(pose)
+        #print(self.current_progress)
+
 
     def __call__(self, pose: Tuple[float, float]):
+        #print(".call")
+        #print(pose)
+        
         pose = np.array(pose)
         pose = pose[np.newaxis, :]
         new_progress = self.progress_tracker.get_progress(pose)[0]
+        print(new_progress)
+        print(self.current_progress)
         delta_progress = 0
         # in this case we just crossed the finishing line!
         if (new_progress - self.current_progress) < -0.9:
@@ -383,7 +396,7 @@ class MixedReward(object):
                 'poses_y' in obs and 
                 'linear_vels_x' in obs and 
                 'linear_vels_y' in obs and
-                'scans' in obs), "Some keys are missing from the obs dictionary"
+                'lidar_occupancy' in obs), "Some keys are missing from the obs dictionary"
 
         
         

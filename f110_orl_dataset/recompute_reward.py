@@ -122,7 +122,7 @@ standard_config = {
     "velocity_change_weight": 0.0,
     "pure_progress_weight": 0.0,
     "min_action_weight" : 0.0,
-    "min_lidar_ray_weight" : 0.0,
+    "min_lidar_ray_weight" : 1.0, #missing
     "inital_velocity": 1.5,
     "normalize": False,
 }
@@ -133,10 +133,10 @@ if __name__ == "__main__":
                 num_agents=1, 
                 params=dict(vmin=0.8, vmax=2.0)),
                 render_mode="human")
-    rew_obj = RecomputeReward(zarr_path="/mnt/hdd2/fabian/f1tenth_dope/ws_ope/f1tenth_orl_dataset/data/trajectories.zarr",
+    rew_obj = RecomputeReward(zarr_path="/home/fabian/msc/f110_dope/ws_ope/f1tenth_orl_dataset/data/trajectories_min_lidar.zarr",
                               # "/mnt/hdd2/fabian/f1tenth_dope/ws_ope/f1tenth_orl_dataset/data/trajectories.zarr",
                               env = env,
-                              decaying_crash=True, **standard_config)
+                              decaying_crash=False, **standard_config)
     rew_obj.apply()
     # sanity check
     x = np.where(rew_obj.root["done"] or rew_obj.root["truncated"] == 1)[0]
