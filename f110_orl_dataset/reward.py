@@ -174,8 +174,8 @@ class ProgressReward(object):
         pose = np.array(pose)
         pose = pose[np.newaxis, :]
         new_progress = self.progress_tracker.get_progress(pose)[0]
-        print(new_progress)
-        print(self.current_progress)
+        #print(new_progress)
+        #print(self.current_progress)
         delta_progress = 0
         # in this case we just crossed the finishing line!
         if (new_progress - self.current_progress) < -0.9:
