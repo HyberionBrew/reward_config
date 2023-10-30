@@ -440,7 +440,7 @@ class F1tenthDatasetEnv(F110Env):
             data_dict['timeouts'] = truncated_or_terminals
         
         if include_timesteps_in_obs:
-            data_dict = self.timesteps_to_obs(data_dict)
+            data_dict = self.timesteps_to_dict(data_dict)
 
         return data_dict
     
@@ -470,7 +470,33 @@ class F1tenthDatasetEnv(F110Env):
         data_dict['observations'] = np.vstack(modified_observations)
 
         return data_dict
+    
+    def timesteps_to_dict(self, data_dict, normalize=True):         # Ensure that 'observations' is in the data_dict
+        if 'observations' not in data_dict:
+            print("Error: 'observations' key not found in the data dictionary.")
+            return data_dict
 
+        # Find the end of each trajectory using 'terminals' and 'timeouts'
+        terminals = np.logical_or(data_dict['terminals'], data_dict['timeouts'])
+        end_indices = np.where(terminals)[0] + 1
+
+        # Initialize the list to store the timesteps
+        timesteps = []
+
+        # Iterate through the trajectories to generate timesteps
+        start_idx = 0
+        max_length = 0
+        for end_idx in end_indices:
+            trajectory_timesteps = np.arange(end_idx - start_idx)[:, None]
+            timesteps.append(trajectory_timesteps)
+            start_idx = end_idx
+            max_length = max(max_length, len(trajectory_timesteps))
+
+        # Update the data_dict with the new timesteps
+        data_dict['timesteps'] = np.vstack(timesteps)
+        if normalize:
+            data_dict['timesteps'] = data_dict['timesteps'] / max_length
+        return data_dict
 
 
     def skip_inital_values_random(self, data_dict, skip_inital_min,skip_initial_max):
@@ -555,7 +581,7 @@ class F1tenthDatasetEnv(F110Env):
                         timeouts = np.zeros(clipped_end - clipped_start)
                         timeouts[-1] = 1.0
                         new_data_dict[key].extend(timeouts)
-                        print("cakked")
+                        
 
                     else:
                         new_data_dict[key].extend(value[clipped_start:clipped_end])
