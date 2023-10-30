@@ -304,6 +304,9 @@ class F1tenthDatasetEnv(F110Env):
         min_trajectory_length: int = 0,
         skip_inital_random_min: int = 0,
         skip_inital_random_max: int = 0,
+        max_trajectory_length:int = 0,
+        only_terminals: bool = False,
+        include_timesteps_in_obs: bool = False,
     ) -> Dict[str, Any]:
         """ 
         TODO! this is copied from https://github.com/rr-learning/trifinger_rl_datasets/blob/master/trifinger_rl_datasets/dataset_env.py
@@ -419,6 +422,8 @@ class F1tenthDatasetEnv(F110Env):
             data_dict = self.skip_inital_values_random(data_dict, 
                                                 skip_inital_random_min,
                                                 skip_inital_random_max)
+        if max_trajectory_length != 0:
+            data_dict = self.clip_trajectories(data_dict, 0, max_trajectory_length)
 
         if split_trajectories != 0:
             data_dict = self.split_trajectories(data_dict, split_trajectories, remove_short_trajectories)
@@ -426,9 +431,47 @@ class F1tenthDatasetEnv(F110Env):
         if min_trajectory_length != 0:
             data_dict = self.filter_trajectories_by_length(data_dict, min_trajectory_length)
         print("Number of timesteps:", len(data_dict['rewards']))
+
+        if only_terminals:
+            # or truncates and terminals
+            truncated_or_terminals = np.logical_or(data_dict['terminals'], data_dict['timeouts'])
+            data_dict['terminals'] = truncated_or_terminals
+            data_dict['timeouts'] = truncated_or_terminals
         
+        if include_timesteps_in_obs:
+            data_dict = self.timesteps_to_obs(data_dict)
+
         return data_dict
     
+    def timesteps_to_obs(self, data_dict):
+        # Ensure that 'observations' is in the data_dict
+        if 'observations' not in data_dict:
+            print("Error: 'observations' key not found in the data dictionary.")
+            return data_dict
+
+        # Find the end of each trajectory using 'terminals' and 'timeouts'
+        terminals = np.logical_or(data_dict['terminals'], data_dict['timeouts'])
+        end_indices = np.where(terminals)[0] + 1
+
+        # Initialize the list to store the modified observations
+        modified_observations = []
+
+        # Iterate through the trajectories and append timesteps
+        start_idx = 0
+        for end_idx in end_indices:
+            trajectory_observations = data_dict['observations'][start_idx:end_idx]
+            timesteps = np.arange(end_idx - start_idx)[:, None]
+            modified_trajectory_obs = np.hstack((trajectory_observations, timesteps))
+            modified_observations.append(modified_trajectory_obs)
+            start_idx = end_idx
+
+        # Update the observations in data_dict
+        data_dict['observations'] = np.vstack(modified_observations)
+
+        return data_dict
+
+
+
     def skip_inital_values_random(self, data_dict, skip_inital_min,skip_initial_max):
         terminals = np.logical_or(data_dict['terminals'],  data_dict['timeouts'])
         start_indices = np.where(terminals[:-1] & ~terminals[1:])[0] + 1
@@ -479,6 +522,46 @@ class F1tenthDatasetEnv(F110Env):
         new_data_dict['scans'] = np.array(new_data_dict['scans'])
         new_data_dict['infos']['model_name'] = np.array(new_data_dict['infos']['model_name'])
         return new_data_dict
+    
+
+    def clip_trajectories(self, data_dict: dict(), 
+                          min_len: int= 0, 
+                          max_len:int =100):
+
+        terminals = np.logical_or(data_dict['terminals'],  data_dict['timeouts'])
+        start_indices = np.where(terminals[:-1] & ~terminals[1:])[0] + 1
+        start_indices = np.concatenate(([0], start_indices))
+        
+        # Prepare new data dict to store modified trajectories
+        new_data_dict = {key: [] for key in data_dict.keys()}
+        if 'infos' in data_dict:
+            new_data_dict['infos'] = {key: [] for key in data_dict['infos'].keys()}
+        
+        for i in range(len(start_indices) - 1):
+            start, end = start_indices[i], start_indices[i + 1]
+            
+            # Clip the trajectory based on min_len and max_len
+            clipped_start = max(start + min_len, start)
+            clipped_end = min(start + max_len, end)
+
+            if clipped_end > clipped_start:
+                for key, value in data_dict.items():
+                    if key == 'infos':
+                        for info_key in data_dict['infos'].keys():
+                            new_data_dict['infos'][info_key].extend(data_dict['infos'][info_key][clipped_start:clipped_end])
+                    else:
+                        new_data_dict[key].extend(value[clipped_start:clipped_end])
+        
+        # Convert lists back to numpy arrays
+        for key, value in new_data_dict.items():
+            if key == 'infos':
+                for info_key in new_data_dict['infos'].keys():
+                    new_data_dict['infos'][info_key] = np.array(new_data_dict['infos'][info_key])
+            else:
+                new_data_dict[key] = np.array(value)
+        
+        return new_data_dict
+
 
     def skip_inital_values(self, data_dict, skip_initial):
         terminals = np.logical_or(data_dict['terminals'],  data_dict['timeouts'])
