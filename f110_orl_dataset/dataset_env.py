@@ -304,7 +304,7 @@ class F1tenthDatasetEnv(F110Env):
         min_trajectory_length: int = 0,
         skip_inital_random_min: int = 0,
         skip_inital_random_max: int = 0,
-        max_trajectory_length:int = 0,
+        clip_trajectory_length = None,
         only_terminals: bool = False,
         include_timesteps_in_obs: bool = False,
     ) -> Dict[str, Any]:
@@ -422,8 +422,9 @@ class F1tenthDatasetEnv(F110Env):
             data_dict = self.skip_inital_values_random(data_dict, 
                                                 skip_inital_random_min,
                                                 skip_inital_random_max)
-        if max_trajectory_length != 0:
-            data_dict = self.clip_trajectories(data_dict, 0, max_trajectory_length)
+        if clip_trajectory_length is not None:
+            data_dict = self.clip_trajectories(data_dict, clip_trajectory_length[0], 
+                                               clip_trajectory_length[1])
 
         if split_trajectories != 0:
             data_dict = self.split_trajectories(data_dict, split_trajectories, remove_short_trajectories)
@@ -549,9 +550,16 @@ class F1tenthDatasetEnv(F110Env):
                     if key == 'infos':
                         for info_key in data_dict['infos'].keys():
                             new_data_dict['infos'][info_key].extend(data_dict['infos'][info_key][clipped_start:clipped_end])
+                    elif key == 'timeouts':
+                        # 0s except for the last timestep
+                        timeouts = np.zeros(clipped_end - clipped_start)
+                        timeouts[-1] = 1.0
+                        new_data_dict[key].extend(timeouts)
+                        print("cakked")
+
                     else:
                         new_data_dict[key].extend(value[clipped_start:clipped_end])
-        
+                        
         # Convert lists back to numpy arrays
         for key, value in new_data_dict.items():
             if key == 'infos':
