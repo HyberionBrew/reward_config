@@ -386,6 +386,8 @@ class F1tenthDatasetEnv(F110Env):
         # print("hi")
         data_dict['index'] = indices #root['timestep'][indices]
         # loop over observation keys
+        print(indices)
+        print(indices.shape)
         data_dict['observations'] = dict()
         for key in root['observations'].array_keys():
             print(key)
@@ -496,6 +498,7 @@ class F1tenthDatasetEnv(F110Env):
         data_dict['timesteps'] = np.vstack(timesteps)
         if normalize:
             data_dict['timesteps'] = data_dict['timesteps'] / max_length
+            data_dict['timesteps_constant'] = 1/max_length
         return data_dict
 
 
@@ -708,7 +711,15 @@ class F1tenthDatasetEnv(F110Env):
 
     def get_laser_scan(self, states, subsample_laser):
         xy = states[:, :2]
-        theta = states[:, 2]
+        #print("states laser")
+        #print(states)
+        theta_sin = states[:, 2]
+        theta_cos = states[:, 3]
+        #print(states)
+        #print(theta_sin)
+        #print(theta_cos)
+        theta = np.arctan2(theta_sin, theta_cos)
+        #print("theta", theta)
         # Expand the dimensions of theta
         theta = np.expand_dims(theta, axis=-1)
         joined = np.concatenate([xy, theta], axis=-1)
