@@ -307,6 +307,7 @@ class F1tenthDatasetEnv(F110Env):
         clip_trajectory_length = None,
         only_terminals: bool = False,
         include_timesteps_in_obs: bool = False,
+        debug: bool = False,
     ) -> Dict[str, Any]:
         """ 
         TODO! this is copied from https://github.com/rr-learning/trifinger_rl_datasets/blob/master/trifinger_rl_datasets/dataset_env.py
@@ -370,6 +371,11 @@ class F1tenthDatasetEnv(F110Env):
             indices = np.where(~np.isin(model_names, without_agents))[0]
         if len(only_agents) > 0:
             indices = np.where(np.isin(model_names, only_agents))[0]
+        
+        if debug == True:
+            # just take the first 10
+            print("Picking first 10")
+            indices = np.arange(10)
         print("Indices:", len(indices))
         if alternate_reward:
             print("Using alternate reward")

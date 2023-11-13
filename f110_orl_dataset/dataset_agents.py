@@ -15,7 +15,8 @@ class F110Actor(object):
         self.obs_keys = [
                 "poses_x",
                 "poses_y",
-                "poses_theta",
+                "theta_sin",
+                "theta_cos",
                 "ang_vels_z",
                 "linear_vels_x",
                 "linear_vels_y",
