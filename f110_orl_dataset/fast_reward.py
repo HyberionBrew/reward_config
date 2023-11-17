@@ -1,5 +1,5 @@
 import numpy as np
-from config_new import Config
+from .config_new import Config
 from f110_gym.envs.track import Track
 import gymnasium as gym
 
@@ -9,7 +9,7 @@ class ProgressReward:
     """
     (Batch, trajectory_length, obs_dim/act_dim) -> input
     """
-    def __call__(self, obs, action):
+    def __call__(self, obs, action, laser_scan):
         #if obs.shape[1] <= 1:
         #    return np.zeros((obs.shape[0], obs.shape[1]))
         assert len(obs.shape) == 3
@@ -49,7 +49,7 @@ class MinActReward:
     @param obs: observation with the shape (batch_size, trajectory_length, obs_dim).
     @returns reward with the shape (batch_size, trajectory_length)
     """
-    def __call__(self, obs, action):
+    def __call__(self, obs, action, laser_scan):
         delta_steering = np.abs(action[:,:,0])
         normalized_steering = (delta_steering / self.high_steering)**2
         inverse = 1 - normalized_steering
@@ -72,7 +72,7 @@ class RacelineDeltaReward:
         self.raceline = np.stack([xs,ys], axis=1)
         self.largest_delta_observed = max_delta
 
-    def __call__(self, obs, action) -> float:
+    def __call__(self, obs, action, laser_scan) -> float:
         pose = obs[...,:2]
         # batch_data shape becomes (batch_size, timesteps, 1, 2)
         # racing_line shape becomes (1, 1, points, 2)
@@ -95,8 +95,10 @@ class RacelineDeltaReward:
         reward = reward[...,0]
         return reward
 
+# CURRENTLY DOES NOT WORK WITH LIDAR!
+#TODO! CAREFULL WHEN ADDING LIDAR TO NOT BREAK SOME REWARDS
 class MixedReward:
-    def __init__(self, env:gym.Env, track:Track, config):
+    def __init__(self, env:gym.Env, config):
         # self.config = config
         self.env = env
         self.rewards = []
@@ -122,24 +124,27 @@ class MixedReward:
     Trajectory length needs to be at least > 1 for certain rewards.
     @param action: action with the shape (batch_size, trajectory_length, action_dim)
     """
-    def __call__(self, obs, action, collision, done):
+    def __call__(self, obs, action, collision, done, laser_scan=None):
         assert obs.shape[:-1] == action.shape[:-1]
         assert len(obs.shape) == 3
+        assert obs.shape[-1] == 11
+        # need to handle laser scans somehow in the future
 
         # empty rewards array to collect the rewards
         rewards = np.zeros((obs.shape[0], obs.shape[1]))
         # now we need to handle each of the rewards
+        #print("***", obs.shape)
         for reward in self.rewards:
-            rewards += reward(obs, action)
-
+            rewards += reward(obs, action, laser_scan)
+        #print(rewards.shape)
         # where collision is true set the reward to -10
         rewards[collision] = self.config.collision_penalty
-        return rewards
+        return rewards, None
         
 
 class StepMixedReward:
-    def __init__(self, config):
-        self.mixedReward = MixedReward(config)
+    def __init__(self, env, config):
+        self.mixedReward = MixedReward(env, config)
         self.previous_obs = None
         self.previous_action = None
     def reset(self):
@@ -149,8 +154,19 @@ class StepMixedReward:
     obs need to have the following shape: (batch, 1, obs_dim) (since we only do stepwise)
     """
     def __call__(self, obs, action, collision, done):
-        assert len(obs.shape) == 3
-        assert obs.shape[1] == 1
+        assert len(obs.shape) == 2
+        assert len(action.shape) == 2
+        assert action.shape[1] == 2
+        assert obs.shape[1] == 11
+        assert obs.shape[0] == action.shape[0]
+
+        #print(collision.shape)
+        #print(done.shape)
+        # add a timestep dimension at axis 1
+        obs = np.expand_dims(obs, axis=1)
+        action = np.expand_dims(action, axis=1)
+        collision = np.expand_dims(collision, axis=1)
+        done = np.expand_dims(done, axis=1)
 
         if self.previous_obs is None:
             self.previous_obs = obs
@@ -163,8 +179,10 @@ class StepMixedReward:
         collision = np.concatenate([collision, collision], axis=1)
         done = np.concatenate([done, done], axis=1)
         # now we can apply the mixed reward
-        reward = self.mixedReward(obs_t2, action_t2, collision, done)
+        reward, _ = self.mixedReward(obs_t2, action_t2, collision, done)
         # now we discard the first timestep
+        #print(reward)
+        #print(reward.shape)
         reward = reward[:,1]
         self.previous_action = action
         self.previous_obs = obs
@@ -179,7 +197,7 @@ import f110_orl_dataset
 
 def calculate_reward(config, dataset, env, track):
     # init reward
-    mixedReward = MixedReward(env, track,config)
+    mixedReward = MixedReward(env, config)
 
     timesteps = dataset["observations"].shape[0]
     finished_trajectory = np.logical_or(dataset["terminals"],
@@ -204,7 +222,7 @@ def calculate_reward(config, dataset, env, track):
         if batch[0].shape[1] <= 1:
             break
 
-        reward = mixedReward(batch[0], batch[1], batch[2], batch[3])
+        reward, _ = mixedReward(batch[0], batch[1], batch[2], batch[3])
         #print(reward.shape)
         all_rewards = np.concatenate([all_rewards, reward], axis=1)
 

@@ -290,6 +290,29 @@ class F1tenthDatasetEnv(F110Env):
     #    scan = root['observations']['lidar_occupancy'][indices]
     #    return scan
 
+    def compute_normalization(self,observation):
+        # obs have shape (n_timesteps, n_features) want mean (n_features)
+        self.mean_obs = np.mean(observation, axis=0)
+        print(self.mean_obs.shape)
+        self.std_obs = np.std(observation, axis=0)
+        return self.mean_obs, self.std_obs
+
+    def normalize_obs(self,observations, mean, std):
+        # obs have shape (n_timesteps, n_features) want mean (n_features)
+        obs_return = observations.copy()
+        # compute in which columns we need to apply normalization
+        for i in [0,1,4,5,6,7,8]: # the values we need to normalize
+            obs_return[:,i] = (observations[:,i] - mean[i]) / std[i]
+        return obs_return
+    
+    def unnormalize_obs(self, observations):
+        obs_return = observations.copy()
+        for i in [0,1,4,5,6,7,8]: # the values we need to normalize
+            obs_return[:,i] = (observations[:,i] * self.std_obs[i]) + self.mean_obs[i]
+        
+        return obs_return
+
+
     def get_dataset(
         self,
         zarr_path: Union[str, os.PathLike] = None,
