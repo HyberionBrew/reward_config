@@ -297,12 +297,12 @@ class F1tenthDatasetEnv(F110Env):
         self.std_obs = np.std(observation, axis=0)
         return self.mean_obs, self.std_obs
 
-    def normalize_obs(self,observations, mean, std):
+    def normalize_obs(self,observations, mean, std, eps=1e-8):
         # obs have shape (n_timesteps, n_features) want mean (n_features)
         obs_return = observations.copy()
         # compute in which columns we need to apply normalization
         for i in [0,1,4,5,6,7,8]: # the values we need to normalize
-            obs_return[:,i] = (observations[:,i] - mean[i]) / std[i]
+            obs_return[:,i] = (observations[:,i] - mean[i]) / (std[i] +eps)
         return obs_return
     
     def unnormalize_obs(self, observations):
@@ -330,6 +330,7 @@ class F1tenthDatasetEnv(F110Env):
         clip_trajectory_length = None,
         only_terminals: bool = False,
         include_timesteps_in_obs: bool = False,
+        sample_from_trajectories: int = 0,
         debug: bool = False,
     ) -> Dict[str, Any]:
         """ 
@@ -469,7 +470,8 @@ class F1tenthDatasetEnv(F110Env):
             truncated_or_terminals = np.logical_or(data_dict['terminals'], data_dict['timeouts'])
             data_dict['terminals'] = truncated_or_terminals
             data_dict['timeouts'] = truncated_or_terminals
-        
+        if sample_from_trajectories!=0:
+            data_dict = skip_trajectories(data_dict, keep=sample_from_trajectories)
         if include_timesteps_in_obs:
             data_dict = self.timesteps_to_dict(data_dict)
 
@@ -582,6 +584,40 @@ class F1tenthDatasetEnv(F110Env):
         new_data_dict['infos']['model_name'] = np.array(new_data_dict['infos']['model_name'])
         return new_data_dict
     
+
+    def skip_trajectories(self, data_dict: dict, keep: int = 10):
+        terminals = np.logical_or(data_dict['terminals'], data_dict['timeouts'])
+        start_indices = np.where(terminals[:-1] & ~terminals[1:])[0] + 1
+        start_indices = np.concatenate(([0], start_indices))
+
+        # Prepare new data dict to store modified trajectories
+        new_data_dict = {key: [] for key in data_dict.keys()}
+        if 'infos' in data_dict:
+            new_data_dict['infos'] = {key: [] for key in data_dict['infos'].keys()}
+
+        # Keep only every 'keep'-th trajectory
+        for i in range(0, len(start_indices) - 1, keep):
+            start, end = start_indices[i], start_indices[min(i + keep, len(start_indices) - 1)]
+
+            for key, value in data_dict.items():
+                if key == 'infos':
+                    for info_key in data_dict['infos'].keys():
+                        new_data_dict['infos'][info_key].extend(data_dict['infos'][info_key][start:end])
+                else:
+                    new_data_dict[key].extend(value[start:end])
+
+        # Convert lists back to numpy arrays
+        for key, value in new_data_dict.items():
+            if key == 'infos':
+                for info_key in new_data_dict['infos'].keys():
+                    new_data_dict['infos'][info_key] = np.array(new_data_dict['infos'][info_key])
+            else:
+                new_data_dict[key] = np.array(value)
+
+        return new_data_dict
+
+
+
 
     def clip_trajectories(self, data_dict: dict(), 
                           min_len: int= 0, 
