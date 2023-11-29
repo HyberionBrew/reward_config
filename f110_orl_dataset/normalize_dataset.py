@@ -78,7 +78,21 @@ class Normalize:
 
         assert start_idx == batch.shape[1], "Mismatch in the number of columns"
         return batch_dict
-
+    
+    def flatten_batch(self, batch_dict):
+        batch = np.zeros((len(batch_dict[list(batch_dict.keys())[0]]), self.state_space.shape[0]))
+        print(batch.shape)
+        for key, obs in self.state_space.spaces.items():
+            # Calculate how many columns this part of the observation takes up
+            space_shape = np.prod(obs.shape)
+            # Slice the appropriate columns from the batch
+            batch_slice = batch_dict[key]
+            # If the space has multi-dimensions, reshape it accordingly
+            if len(obs.shape) > 1:
+                batch_slice = batch_slice.reshape((-1, space_shape))
+            batch[:, :space_shape] = batch_slice
+        return batch
+    
     def normalize_obs_batch(self, batch_dict):
         # Unflatten the batch observations
         for key, obs in batch_dict.items():
